@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Lock, User, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { API } from '../api';
 
 export default function Login() {
     const [username, setUsername] = useState('');
@@ -11,10 +12,8 @@ export default function Login() {
         e.preventDefault();
         setLoading(true);
 
-        const API = import.meta.env.VITE_API_URL || "https://kseb-room-management.onrender.com";
-
         try {
-            const res = await fetch(`${API}/api/auth/login`, {
+            const res = await fetch(`${API}/auth/login`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"

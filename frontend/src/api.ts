@@ -1,10 +1,10 @@
-const API_URL = import.meta.env.VITE_API_URL || "https://kseb-room-management.onrender.com/api";
+export const API = import.meta.env.VITE_API_URL || "https://kseb-room-management.onrender.com/api";
 
 export const request = async (endpoint: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers || {});
     headers.set('Content-Type', 'application/json');
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await fetch(`${API}${endpoint}`, {
         ...options,
         headers,
     });
