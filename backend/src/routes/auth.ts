@@ -5,7 +5,10 @@ const router = Router();
 router.post("/login", (req, res) => {
     const { username, password } = req.body;
 
-    if (username === "KSEBKerala" && password === "1234") {
+    if (
+        username === process.env.ADMIN_USERNAME &&
+        password === process.env.ADMIN_PASSWORD
+    ) {
         return res.json({
             success: true,
             username
@@ -13,8 +16,7 @@ router.post("/login", (req, res) => {
     }
 
     return res.status(401).json({
-        success: false,
-        message: "Invalid credentials"
+        success: false
     });
 });
 

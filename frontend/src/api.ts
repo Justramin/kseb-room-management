@@ -1,6 +1,4 @@
-export const API = import.meta.env.VITE_API_URL ?? "https://kseb-room-management.onrender.com/api";
-
-console.log("Production API URL:", API);
+export const API = import.meta.env.VITE_API_URL || "https://kseb-room-management.onrender.com/api";
 
 export const request = async (endpoint: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers || {});
@@ -14,17 +12,14 @@ export const request = async (endpoint: string, options: RequestInit = {}) => {
     if (!response.ok) {
         let errorMessage = 'An error occurred';
         try {
-            // Only try to parse JSON if the content type is JSON to avoid "Unexpected token '<'"
             const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
                 const errorData = await response.json();
                 errorMessage = errorData.error || errorMessage;
             } else {
-                errorMessage = `Server Error: ${response.status} ${response.statusText}`;
+                errorMessage = `Server Error: ${response.status}`;
             }
-        } catch (err) {
-            errorMessage = `Network or Server Error (${response.status})`;
-        }
+        } catch (err) { }
 
         if (response.status === 401) {
             localStorage.removeItem('user');

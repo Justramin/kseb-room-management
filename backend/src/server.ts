@@ -13,22 +13,21 @@ const app = express();
 app.use(morgan('dev'));
 app.use(cors({
     origin: [
-        "https://kseb-room-management.vercel.app",
-        process.env.FRONTEND_URL,
-        "http://localhost:5173"
+        "http://localhost:5173",
+        process.env.FRONTEND_URL || ""
     ].filter(Boolean) as string[],
     credentials: true
 }));
 
 app.use(express.json());
 
-// Auth Routes
-app.use('/api/auth', authRoutes);
-
 // Health Check
 app.get('/api/health', (_req, res) => {
     res.json({ status: "ok" });
 });
+
+// Auth Routes
+app.use('/api/auth', authRoutes);
 
 // Rooms Routes
 app.get('/api/rooms', async (_req, res) => {
@@ -226,7 +225,7 @@ app.get('/api/rooms/availability', async (req, res) => {
       WHERE ($1 < check_out AND $2 > check_in)
     `, [timeCheckIn, timeCheckOut]);
 
-        const bookedRoomIds = new Set(overlapResult.rows.map(r => r.id));
+        const bookedRoomIds = new Set(overlapResult.rows.map(r => r.room_id));
 
         const nextBookingsResult = await pool.query(`
       SELECT room_id, check_in FROM bookings
@@ -309,7 +308,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     });
 });
 
-const PORT = parseInt(process.env.PORT as string) || 10000;
-app.listen(PORT, '0.0.0.0', () => {
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

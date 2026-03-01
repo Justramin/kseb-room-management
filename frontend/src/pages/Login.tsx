@@ -12,28 +12,14 @@ export default function Login() {
         e.preventDefault();
         setLoading(true);
 
-        const api_endpoint = `${API}/auth/login`;
-        console.log("Attempting login at URL:", api_endpoint);
-
         try {
-            const res = await fetch(api_endpoint, {
+            const res = await fetch(`${API}/auth/login`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({ username, password })
             });
-
-            // Prevent JSON parsing error if server returns HTML (e.g. 404/500)
-            if (!res.ok) {
-                const contentType = res.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    const data = await res.json();
-                    throw new Error(data.message || "Login failed");
-                } else {
-                    throw new Error(`Server returned HTML instead of JSON (${res.status}). Verify API URL.`);
-                }
-            }
 
             const data = await res.json();
 
@@ -42,11 +28,11 @@ export default function Login() {
                 toast.success('Welcome back, Admin!');
                 window.location.href = "/dashboard";
             } else {
-                toast.error(data.message || "Invalid login");
+                toast.error(data.message || "Invalid credentials");
             }
         } catch (err: any) {
-            console.error("Critical Login Error:", err);
-            toast.error(err.message || "Server connection failed");
+            console.error("Login Error:", err);
+            toast.error("Server connection failed");
         } finally {
             setLoading(false);
         }
