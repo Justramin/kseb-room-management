@@ -10,24 +10,24 @@ const app = express();
 
 // Middleware
 app.use(morgan('dev'));
+// CORS configuration
 app.use(cors({
-    origin: [
-        "http://localhost:5173",
-        process.env.FRONTEND_URL || ""
-    ].filter(Boolean)
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    credentials: true
 }));
+
 app.use(express.json());
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'password123';
 
-// Simple Auth Middleware (Checks if a user is logged in via a simple header)
+// Auth middleware
 const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    // For "very simple" demo mode, we'll just check if the 'Authorization' header is present
-    // or if the user is verified by the frontend. 
-    // To strictly follow "No JWT/Complexity", we can just allow it or check a simple flag.
-    const user = req.headers['x-user-auth'];
-    if (!user) {
+    // Check for either the simple header or the Bearer token for demo compatibility
+    const authHeader = req.headers.authorization;
+    const userHeader = req.headers['x-user-auth'];
+
+    if (!authHeader && !userHeader) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     next();
@@ -38,12 +38,13 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: "ok" });
 });
 
-// Simple Login
-app.post('/api/login', (req, res) => {
+// Simple Login (Updated to /api/auth/login)
+app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body;
     if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
         res.json({
             success: true,
+            token: "demo-token-12345", // Demo token as requested
             username: username
         });
     } else {

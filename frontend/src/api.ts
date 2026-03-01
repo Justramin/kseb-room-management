@@ -1,13 +1,13 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000/api';
+const API_URL = import.meta.env.VITE_API_URL || "https://kseb-room-management.onrender.com/api";
 
 export const request = async (endpoint: string, options: RequestInit = {}) => {
     const user = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
     const headers = new Headers(options.headers || {});
 
     headers.set('Content-Type', 'application/json');
-    if (user) {
-        headers.set('X-User-Auth', user);
-    }
+    if (user) headers.set('X-User-Auth', user);
+    if (token) headers.set('Authorization', `Bearer ${token}`);
 
     const response = await fetch(`${API_URL}${endpoint}`, {
         ...options,

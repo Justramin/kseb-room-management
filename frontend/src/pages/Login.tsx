@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { request } from '../api';
 import { Lock, User, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -11,18 +10,34 @@ export default function Login() {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+
+        const API = import.meta.env.VITE_API_URL || "https://kseb-room-management.onrender.com";
+        console.log("Attempting login at API URL:", API);
+
         try {
-            const data = await request('/login', {
-                method: 'POST',
-                body: JSON.stringify({ username, password })
+            const res = await fetch(`${API}/api/auth/login`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ username, password }),
             });
-            if (data.success) {
-                localStorage.setItem('user', data.username);
-                toast.success('Welcome back, Admin!');
-                window.location.href = '/';
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.message || "Login failed");
             }
+
+            // Store both for compatibility across different implementations
+            localStorage.setItem("token", data.token);
+            localStorage.setItem("user", data.username);
+
+            toast.success('Welcome back, Admin!');
+            window.location.href = "/";
         } catch (err: any) {
-            toast.error(err.message || 'Login failed. Please check your credentials.');
+            console.error("Login Error:", err);
+            toast.error(err.message || 'An error occurred during login');
         } finally {
             setLoading(false);
         }
