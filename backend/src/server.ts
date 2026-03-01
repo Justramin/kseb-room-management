@@ -11,15 +11,12 @@ const app = express();
 
 // Middleware
 app.use(morgan('dev'));
+app.use(express.json());
+
 app.use(cors({
-    origin: [
-        "http://localhost:5173",
-        process.env.FRONTEND_URL || ""
-    ].filter(Boolean) as string[],
+    origin: process.env.FRONTEND_URL,
     credentials: true
 }));
-
-app.use(express.json());
 
 // Health Check
 app.get('/api/health', (_req, res) => {
@@ -308,7 +305,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     });
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
+const PORT = parseInt(process.env.PORT as string) || 10000;
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
 });

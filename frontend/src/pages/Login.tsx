@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Lock, User, Loader2 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { API } from '../api';
 
 export default function Login() {
@@ -18,21 +17,22 @@ export default function Login() {
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({
+                    username,
+                    password
+                })
             });
 
             const data = await res.json();
 
             if (data.success) {
                 localStorage.setItem("user", data.username);
-                toast.success('Welcome back, Admin!');
                 window.location.href = "/dashboard";
             } else {
-                toast.error(data.message || "Invalid credentials");
+                alert("Invalid login");
             }
-        } catch (err: any) {
-            console.error("Login Error:", err);
-            toast.error("Server connection failed");
+        } catch (err) {
+            alert("Server connection failed");
         } finally {
             setLoading(false);
         }
