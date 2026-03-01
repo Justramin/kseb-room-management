@@ -13,6 +13,7 @@ const app = express();
 app.use(morgan('dev'));
 app.use(cors({
     origin: [
+        "https://kseb-room-management.vercel.app",
         process.env.FRONTEND_URL,
         "http://localhost:5173"
     ].filter(Boolean) as string[],
