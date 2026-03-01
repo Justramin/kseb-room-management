@@ -23,15 +23,20 @@ export default function Login() {
                 })
             });
 
+            if (!res.ok) {
+                throw new Error("HTTP error " + res.status);
+            }
+
             const data = await res.json();
 
             if (data.success) {
                 localStorage.setItem("user", data.username);
                 window.location.href = "/dashboard";
             } else {
-                alert("Invalid login");
+                alert("Invalid credentials");
             }
         } catch (err) {
+            console.error(err);
             alert("Server connection failed");
         } finally {
             setLoading(false);
