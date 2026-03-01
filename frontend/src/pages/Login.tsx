@@ -12,32 +12,29 @@ export default function Login() {
         setLoading(true);
 
         const API = import.meta.env.VITE_API_URL || "https://kseb-room-management.onrender.com";
-        console.log("Attempting login at API URL:", API);
 
         try {
             const res = await fetch(`${API}/api/auth/login`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({
+                    username,
+                    password
+                })
             });
 
             const data = await res.json();
 
-            if (!res.ok) {
-                throw new Error(data.message || "Login failed");
+            if (data.success) {
+                localStorage.setItem("user", data.username);
+                window.location.href = "/dashboard";
+            } else {
+                toast.error(data.message || "Invalid login");
             }
-
-            // Store both for compatibility across different implementations
-            localStorage.setItem("token", data.token);
-            localStorage.setItem("user", data.username);
-
-            toast.success('Welcome back, Admin!');
-            window.location.href = "/";
-        } catch (err: any) {
-            console.error("Login Error:", err);
-            toast.error(err.message || 'An error occurred during login');
+        } catch (err) {
+            toast.error("Server connection failed");
         } finally {
             setLoading(false);
         }

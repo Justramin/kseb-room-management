@@ -1,14 +1,11 @@
 import { LogOut, User } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 export default function Header() {
-    const navigate = useNavigate();
-
     const username = localStorage.getItem('user') || 'Admin';
 
     const handleLogout = () => {
         localStorage.removeItem('user');
-        navigate('/login');
+        window.location.href = "/";
     };
 
     return (

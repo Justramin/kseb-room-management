@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import morgan from 'morgan';
 import { pool } from './db';
+import authRoutes from './routes/auth';
 
 dotenv.config();
 
@@ -10,7 +11,6 @@ const app = express();
 
 // Middleware
 app.use(morgan('dev'));
-// CORS configuration
 app.use(cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
     credentials: true
@@ -18,44 +18,16 @@ app.use(cors({
 
 app.use(express.json());
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'password123';
-
-// Auth middleware
-const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    // Check for either the simple header or the Bearer token for demo compatibility
-    const authHeader = req.headers.authorization;
-    const userHeader = req.headers['x-user-auth'];
-
-    if (!authHeader && !userHeader) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    next();
-};
+// Auth Routes
+app.use('/api/auth', authRoutes);
 
 // Health Check
 app.get('/api/health', (_req, res) => {
     res.json({ status: "ok" });
 });
 
-// Simple Login (Updated to /api/auth/login)
-app.post('/api/auth/login', (req, res) => {
-    const { username, password } = req.body;
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        res.json({
-            success: true,
-            token: "demo-token-12345", // Demo token as requested
-            username: username
-        });
-    } else {
-        res.status(401).json({
-            success: false,
-            message: "Invalid username or password"
-        });
-    }
-});
-
-app.get('/api/rooms', authMiddleware, async (_req, res) => {
+// Rooms Routes
+app.get('/api/rooms', async (_req, res) => {
     try {
         const result = await pool.query('SELECT * FROM rooms ORDER BY id DESC');
         res.json(result.rows);
@@ -64,7 +36,7 @@ app.get('/api/rooms', authMiddleware, async (_req, res) => {
     }
 });
 
-app.post('/api/rooms', authMiddleware, async (req, res) => {
+app.post('/api/rooms', async (req, res) => {
     const { room_name, capacity, location } = req.body;
     try {
         const result = await pool.query(
@@ -77,7 +49,7 @@ app.post('/api/rooms', authMiddleware, async (req, res) => {
     }
 });
 
-app.put('/api/rooms/:id', authMiddleware, async (req, res) => {
+app.put('/api/rooms/:id', async (req, res) => {
     const { id } = req.params;
     const { room_name, capacity, location } = req.body;
     try {
@@ -92,7 +64,7 @@ app.put('/api/rooms/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.delete('/api/rooms/:id', authMiddleware, async (req, res) => {
+app.delete('/api/rooms/:id', async (req, res) => {
     const { id } = req.params;
     try {
         await pool.query('DELETE FROM rooms WHERE id = $1', [id]);
@@ -102,7 +74,8 @@ app.delete('/api/rooms/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.get('/api/bookings', authMiddleware, async (req, res) => {
+// Bookings Routes
+app.get('/api/bookings', async (req, res) => {
     try {
         const { start, end } = req.query;
         let query = `
@@ -123,7 +96,7 @@ app.get('/api/bookings', authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/api/bookings', authMiddleware, async (req, res) => {
+app.post('/api/bookings', async (req, res) => {
     const { room_id, person_name, phone, check_in, check_out } = req.body;
     try {
         const overlap = await pool.query(`
@@ -146,7 +119,7 @@ app.post('/api/bookings', authMiddleware, async (req, res) => {
     }
 });
 
-app.put('/api/bookings/:id', authMiddleware, async (req, res) => {
+app.put('/api/bookings/:id', async (req, res) => {
     const { id } = req.params;
     const { room_id, person_name, phone, check_in, check_out } = req.body;
     try {
@@ -171,7 +144,7 @@ app.put('/api/bookings/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.delete('/api/bookings/:id', authMiddleware, async (req, res) => {
+app.delete('/api/bookings/:id', async (req, res) => {
     const { id } = req.params;
     try {
         await pool.query('DELETE FROM bookings WHERE id = $1', [id]);
@@ -181,7 +154,8 @@ app.delete('/api/bookings/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.get('/api/dashboard', authMiddleware, async (_req, res) => {
+// Dashboard & Availability Routes
+app.get('/api/dashboard', async (_req, res) => {
     try {
         const roomsCountResult = await pool.query('SELECT COUNT(*) FROM rooms');
         const totalRooms = parseInt(roomsCountResult.rows[0].count, 10);
@@ -231,7 +205,7 @@ app.get('/api/dashboard', authMiddleware, async (_req, res) => {
     }
 });
 
-app.get('/api/rooms/availability', authMiddleware, async (req, res) => {
+app.get('/api/rooms/availability', async (req, res) => {
     const { check_in, check_out } = req.query;
     try {
         const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_name ASC');
@@ -248,7 +222,7 @@ app.get('/api/rooms/availability', authMiddleware, async (req, res) => {
       WHERE ($1 < check_out AND $2 > check_in)
     `, [timeCheckIn, timeCheckOut]);
 
-        const bookedRoomIds = new Set(overlapResult.rows.map(r => r.room_id));
+        const bookedRoomIds = new Set(overlapResult.rows.map(r => r.id));
 
         const nextBookingsResult = await pool.query(`
       SELECT room_id, check_in FROM bookings
@@ -278,7 +252,7 @@ app.get('/api/rooms/availability', authMiddleware, async (req, res) => {
     }
 });
 
-app.get('/api/rooms/available', authMiddleware, async (_req, res) => {
+app.get('/api/rooms/available', async (_req, res) => {
     try {
         const query = `
             SELECT id, room_name as name, capacity, location, 'Available' as status
@@ -331,7 +305,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     });
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
+const PORT = parseInt(process.env.PORT as string) || 10000;
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
 });
