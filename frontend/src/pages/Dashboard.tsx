@@ -1,17 +1,21 @@
 import { useEffect, useState, useCallback } from 'react';
 import { request } from '../api';
-import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
-import { Home, CheckCircle, XCircle, Calendar as CalendarIcon, ArrowRight, ClipboardList } from 'lucide-react';
+import { Home, CheckCircle, XCircle, Calendar as CalendarIcon, ArrowRight, ClipboardList, MapPin, Users } from 'lucide-react';
 
 export default function Dashboard() {
-    const [data, setData] = useState<any>(null);
+    const [stats, setStats] = useState<any>(null);
+    const [availableRooms, setAvailableRooms] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
         try {
-            const dashboardData = await request('/dashboard');
-            setData(dashboardData);
+            const [dashboardStats, availableRoomsData] = await Promise.all([
+                request('/dashboard'),
+                request('/rooms/available')
+            ]);
+            setStats(dashboardStats);
+            setAvailableRooms(availableRoomsData);
         } catch (err) {
             console.error(err);
         } finally {
@@ -25,14 +29,14 @@ export default function Dashboard() {
         return () => clearInterval(interval);
     }, [fetchData]);
 
-    if (loading && !data) return (
+    if (loading && !stats) return (
         <div className="loading-state">
             <div className="spinner"></div>
             <p>Loading your dashboard...</p>
         </div>
     );
 
-    if (!data) return (
+    if (!stats) return (
         <div className="error-state">
             <XCircle size={48} color="red" />
             <p>Error loading dashboard data. Please try again.</p>
@@ -55,21 +59,21 @@ export default function Dashboard() {
                     <div className="stat-icon rooms-icon"><Home size={24} /></div>
                     <div className="stat-content">
                         <h3>Total Rooms</h3>
-                        <div className="value">{data.totalRooms}</div>
+                        <div className="value">{stats.totalRooms}</div>
                     </div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-icon available-icon"><CheckCircle size={24} /></div>
                     <div className="stat-content">
                         <h3>Available Today</h3>
-                        <div className="value">{data.availableRoomsCountToday}</div>
+                        <div className="value">{stats.availableRoomsCountToday}</div>
                     </div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-icon booked-icon"><XCircle size={24} /></div>
                     <div className="stat-content">
                         <h3>Booked Today</h3>
-                        <div className="value">{data.bookedRoomsCountToday}</div>
+                        <div className="value">{stats.bookedRoomsCountToday}</div>
                     </div>
                 </div>
                 <div className="stat-card upcoming-card">
@@ -77,10 +81,12 @@ export default function Dashboard() {
                     <div className="stat-content">
                         <h3>Next Booking</h3>
                         <div className="next-booking-info">
-                            {data.nextUpcomingBooking ? (
+                            {stats.nextUpcomingBooking ? (
                                 <>
-                                    <div className="next-room">{data.nextUpcomingBooking.room_name}</div>
-                                    <div className="next-time">{format(new Date(data.nextUpcomingBooking.check_in), 'MMM dd, p')}</div>
+                                    <div className="next-room">{stats.nextUpcomingBooking.room_name}</div>
+                                    <div className="next-time">
+                                        {new Date(stats.nextUpcomingBooking.check_in).toLocaleDateString()} at {new Date(stats.nextUpcomingBooking.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
                                 </>
                             ) : (
                                 <div className="no-upcoming">No upcoming bookings</div>
@@ -93,31 +99,44 @@ export default function Dashboard() {
             <div className="dashboard-content-grid">
                 <div className="card table-responsive">
                     <div className="card-header">
-                        <h3>Currently Occupied Rooms</h3>
-                        <Link to="/bookings" className="view-all-link">View All Bookings <ArrowRight size={16} /></Link>
+                        <h3 className="flex items-center gap-2">
+                            <CheckCircle size={20} className="text-success" />
+                            Available Rooms
+                        </h3>
+                        <Link to="/rooms" className="view-all-link">Manage Rooms <ArrowRight size={16} /></Link>
                     </div>
-                    {data.currentlyBookedRooms && data.currentlyBookedRooms.length === 0 ? (
+                    {availableRooms.length === 0 ? (
                         <div className="empty-state-compact">
                             <ClipboardList size={32} />
-                            <p>No rooms are currently occupied.</p>
+                            <p>No rooms are currently available.</p>
                         </div>
                     ) : (
                         <table>
                             <thead>
                                 <tr>
                                     <th>Room Name</th>
-                                    <th>Guest Name</th>
-                                    <th>Check-out Time</th>
+                                    <th>Capacity</th>
+                                    <th>Location</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {data.currentlyBookedRooms?.map((b: any) => (
-                                    <tr key={b.id}>
-                                        <td>{b.room_name}</td>
-                                        <td>{b.person_name}</td>
-                                        <td>{format(new Date(b.check_out), 'PP p')}</td>
-                                        <td><span className="status-badge occupied">Occupied</span></td>
+                                {availableRooms.map((room: any) => (
+                                    <tr key={room.id}>
+                                        <td style={{ fontWeight: 600 }}>{room.name}</td>
+                                        <td>
+                                            <div className="flex items-center gap-1">
+                                                <Users size={14} className="text-muted" />
+                                                {room.capacity} Persons
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="flex items-center gap-1">
+                                                <MapPin size={14} className="text-muted" />
+                                                {room.location || 'Not Specified'}
+                                            </div>
+                                        </td>
+                                        <td><span className="status-badge available">Available</span></td>
                                     </tr>
                                 ))}
                             </tbody>

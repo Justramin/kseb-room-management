@@ -41,10 +41,9 @@ This system is configured for deployment on:
    ```env
    PORT=10000
    DATABASE_URL=your_postgresql_connection_string
-   JWT_SECRET=your_jwt_secret
    FRONTEND_URL=http://localhost:5173
-   ADMIN_USERNAME=admin
-   ADMIN_PASSWORD=password123
+   ADMIN_USERNAME=KSEBKerala
+   ADMIN_PASSWORD=123456
    ```
 4. Run in development mode:
    ```bash
@@ -85,7 +84,7 @@ This system is configured for deployment on:
 - Connect your repository.
 - Setting the build command to `npm install && npm run build`.
 - Set the start command to `npm start`.
-- Add the necessary environment variables (`DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL`, etc.).
+- Add the necessary environment variables (`DATABASE_URL`, `FRONTEND_URL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`).
 
 ### Frontend (Vercel)
 - Connect your repository.

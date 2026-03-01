@@ -12,13 +12,15 @@ export default function Login() {
         e.preventDefault();
         setLoading(true);
         try {
-            const { token } = await request('/login', {
+            const data = await request('/login', {
                 method: 'POST',
                 body: JSON.stringify({ username, password })
             });
-            localStorage.setItem('token', token);
-            toast.success('Welcome back, Admin!');
-            window.location.href = '/';
+            if (data.success) {
+                localStorage.setItem('user', data.username);
+                toast.success('Welcome back, Admin!');
+                window.location.href = '/';
+            }
         } catch (err: any) {
             toast.error(err.message || 'Login failed. Please check your credentials.');
         } finally {

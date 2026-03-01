@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { request } from '../api';
 import toast from 'react-hot-toast';
-import { Loader2, Plus, Edit2, Trash2, Home, Users } from 'lucide-react';
+import { Loader2, Plus, Edit2, Trash2, Home, Users, MapPin } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 export default function Rooms() {
     const [rooms, setRooms] = useState<any[]>([]);
     const [availability, setAvailability] = useState<any[]>([]);
     const [isEditing, setIsEditing] = useState<any>(null);
-    const [formData, setFormData] = useState({ room_name: '', capacity: 1 });
+    const [formData, setFormData] = useState({ room_name: '', capacity: 1, location: '' });
     const [loading, setLoading] = useState(true);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [roomToDelete, setRoomToDelete] = useState<number | null>(null);
@@ -49,7 +49,7 @@ export default function Rooms() {
                 });
                 toast.success('Room created successfully');
             }
-            setFormData({ room_name: '', capacity: 1 });
+            setFormData({ room_name: '', capacity: 1, location: '' });
             setIsEditing(null);
             fetchRooms();
         } catch (err: any) {
@@ -59,7 +59,11 @@ export default function Rooms() {
 
     const handleEdit = (room: any) => {
         setIsEditing(room);
-        setFormData({ room_name: room.room_name, capacity: room.capacity });
+        setFormData({
+            room_name: room.room_name,
+            capacity: room.capacity,
+            location: room.location || ''
+        });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -94,14 +98,22 @@ export default function Rooms() {
                     <h3>{isEditing ? 'Edit Room' : 'Add New Room'}</h3>
                 </div>
                 <form onSubmit={handleSubmit}>
-                    <div className="form-row">
-                        <div className="form-group flex-1">
+                    <div className="form-row" style={{ flexWrap: 'wrap' }}>
+                        <div className="form-group flex-1" style={{ minWidth: '200px' }}>
                             <label>Room Name</label>
                             <input
                                 required
                                 value={formData.room_name}
                                 onChange={e => setFormData({ ...formData, room_name: e.target.value })}
                                 placeholder="E.g. VIP Suite, Conference Room"
+                            />
+                        </div>
+                        <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                            <label>Location</label>
+                            <input
+                                value={formData.location}
+                                onChange={e => setFormData({ ...formData, location: e.target.value })}
+                                placeholder="E.g. Ground Floor, Block B"
                             />
                         </div>
                         <div className="form-group" style={{ width: '120px' }}>
@@ -117,7 +129,7 @@ export default function Rooms() {
                     </div>
                     <div className="flex gap-2 justify-end">
                         {isEditing && (
-                            <button type="button" className="btn-secondary" onClick={() => { setIsEditing(null); setFormData({ room_name: '', capacity: 1 }); }}>
+                            <button type="button" className="btn-secondary" onClick={() => { setIsEditing(null); setFormData({ room_name: '', capacity: 1, location: '' }); }}>
                                 Cancel
                             </button>
                         )}
@@ -143,6 +155,7 @@ export default function Rooms() {
                             <thead>
                                 <tr>
                                     <th>Room Name</th>
+                                    <th>Location</th>
                                     <th>Capacity</th>
                                     <th>Status Now</th>
                                     <th style={{ textAlign: 'right' }}>Actions</th>
@@ -155,6 +168,12 @@ export default function Rooms() {
                                     return (
                                         <tr key={room.id}>
                                             <td style={{ fontWeight: 600 }}>{room.room_name}</td>
+                                            <td>
+                                                <div className="flex items-center gap-1">
+                                                    <MapPin size={14} className="text-muted" />
+                                                    {room.location || 'N/A'}
+                                                </div>
+                                            </td>
                                             <td><Users size={14} style={{ marginRight: '4px' }} /> {room.capacity}</td>
                                             <td>
                                                 <span className={`status-badge ${isAvailable ? 'available' : 'occupied'}`}>

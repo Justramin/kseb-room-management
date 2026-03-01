@@ -3,53 +3,54 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import morgan from 'morgan';
 import { pool } from './db';
-import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
 const app = express();
 
-// Request logging
+// Middleware
 app.use(morgan('dev'));
-
-// CORS configuration
 app.use(cors({
     origin: [
         "http://localhost:5173",
         process.env.FRONTEND_URL || ""
     ].filter(Boolean)
 }));
-
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecret123';
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'password123';
 
-// Health check route
+// Simple Auth Middleware (Checks if a user is logged in via a simple header)
+const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
+    // For "very simple" demo mode, we'll just check if the 'Authorization' header is present
+    // or if the user is verified by the frontend. 
+    // To strictly follow "No JWT/Complexity", we can just allow it or check a simple flag.
+    const user = req.headers['x-user-auth'];
+    if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+};
+
+// Health Check
 app.get('/api/health', (_req, res) => {
     res.json({ status: "ok" });
 });
 
-// Auth middleware
-const authMiddleware = (req: any, res: any, next: any) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Unauthorized' });
-    try {
-        jwt.verify(token, JWT_SECRET);
-        next();
-    } catch (err) {
-        res.status(401).json({ error: 'Invalid token' });
-    }
-};
-
+// Simple Login
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '1d' });
-        res.json({ token });
+        res.json({
+            success: true,
+            username: username
+        });
     } else {
-        res.status(401).json({ error: 'Invalid credentials' });
+        res.status(401).json({
+            success: false,
+            message: "Invalid username or password"
+        });
     }
 });
 
@@ -63,11 +64,11 @@ app.get('/api/rooms', authMiddleware, async (_req, res) => {
 });
 
 app.post('/api/rooms', authMiddleware, async (req, res) => {
-    const { room_name, capacity } = req.body;
+    const { room_name, capacity, location } = req.body;
     try {
         const result = await pool.query(
-            'INSERT INTO rooms (room_name, capacity) VALUES ($1, $2) RETURNING *',
-            [room_name, capacity]
+            'INSERT INTO rooms (room_name, capacity, location) VALUES ($1, $2, $3) RETURNING *',
+            [room_name, capacity, location]
         );
         res.json(result.rows[0]);
     } catch (err: any) {
@@ -77,11 +78,11 @@ app.post('/api/rooms', authMiddleware, async (req, res) => {
 
 app.put('/api/rooms/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
-    const { room_name, capacity } = req.body;
+    const { room_name, capacity, location } = req.body;
     try {
         const result = await pool.query(
-            'UPDATE rooms SET room_name = $1, capacity = $2 WHERE id = $3 RETURNING *',
-            [room_name, capacity, id]
+            'UPDATE rooms SET room_name = $1, capacity = $2, location = $3 WHERE id = $4 RETURNING *',
+            [room_name, capacity, location, id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Room not found' });
         res.json(result.rows[0]);
@@ -265,11 +266,30 @@ app.get('/api/rooms/availability', authMiddleware, async (req, res) => {
             id: r.id,
             room_name: r.room_name,
             capacity: r.capacity,
+            location: r.location,
             status: bookedRoomIds.has(r.id) ? 'Booked' : 'Available',
             next_booking_time: nextBookingsMap.get(r.id) || null
         }));
 
         res.json(availability);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/rooms/available', authMiddleware, async (_req, res) => {
+    try {
+        const query = `
+            SELECT id, room_name as name, capacity, location, 'Available' as status
+            FROM rooms
+            WHERE id NOT IN (
+                SELECT room_id FROM bookings
+                WHERE check_in <= NOW() AND check_out > NOW()
+            )
+            ORDER BY room_name ASC
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
@@ -282,6 +302,7 @@ app.post('/api/init', async (_req, res) => {
         id SERIAL PRIMARY KEY,
         room_name TEXT UNIQUE NOT NULL,
         capacity INTEGER NOT NULL,
+        location TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 

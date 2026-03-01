@@ -4,8 +4,10 @@ import { useNavigate } from 'react-router-dom';
 export default function Header() {
     const navigate = useNavigate();
 
+    const username = localStorage.getItem('user') || 'Admin';
+
     const handleLogout = () => {
-        localStorage.removeItem('token');
+        localStorage.removeItem('user');
         navigate('/login');
     };
 
@@ -17,7 +19,7 @@ export default function Header() {
             <div className="header-actions">
                 <div className="user-profile">
                     <User size={18} />
-                    <span>Admin</span>
+                    <span>{username}</span>
                 </div>
                 <button onClick={handleLogout} className="logout-btn">
                     <LogOut size={18} />

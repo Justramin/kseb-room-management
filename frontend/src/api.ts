@@ -1,12 +1,12 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000/api';
 
 export const request = async (endpoint: string, options: RequestInit = {}) => {
-    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
     const headers = new Headers(options.headers || {});
 
     headers.set('Content-Type', 'application/json');
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
+    if (user) {
+        headers.set('X-User-Auth', user);
     }
 
     const response = await fetch(`${API_URL}${endpoint}`, {

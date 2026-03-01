@@ -11,8 +11,8 @@ import { Toaster } from 'react-hot-toast';
 import Header from './components/Header';
 
 const ProtectedRoute = ({ children }: { children: any }) => {
-  const token = localStorage.getItem('token');
-  if (!token) return <Navigate to="/login" />;
+  const user = localStorage.getItem('user');
+  if (!user) return <Navigate to="/login" />;
   return (
     <div className="app-container">
       <Header />
