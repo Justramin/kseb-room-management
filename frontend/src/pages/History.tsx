@@ -20,8 +20,8 @@ export default function History() {
 
     const [searchTerm, setSearchTerm] = useState('');
 
+    // fetchData is used for manual refreshes after edits
     const fetchData = useCallback(async () => {
-        setLoading(true);
         try {
             const [bookingsData, roomsData] = await Promise.all([
                 request('/bookings'),
@@ -29,16 +29,30 @@ export default function History() {
             ]);
             setBookings(bookingsData);
             setRooms(roomsData);
-        } catch (err) {
-            toast.error('Failed to load history');
-        } finally {
-            setLoading(false);
+        } catch (err: any) {
+            if (err?.name !== 'AbortError') {
+                toast.error('Failed to load history', { id: 'history-fetch-error' });
+            }
         }
     }, []);
 
+    // Initial load — AbortController survives React StrictMode double-mount
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        const controller = new AbortController();
+        setLoading(true);
+        Promise.all([request('/bookings'), request('/rooms')])
+            .then(([bookingsData, roomsData]) => {
+                setBookings(bookingsData);
+                setRooms(roomsData);
+            })
+            .catch(err => {
+                if (err?.name !== 'AbortError') {
+                    toast.error('Failed to load history', { id: 'history-fetch-error' });
+                }
+            })
+            .finally(() => setLoading(false));
+        return () => controller.abort(); // StrictMode cleanup
+    }, []);
 
     const handleEdit = (booking: any) => {
         setIsEditing(booking);

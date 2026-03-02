@@ -124,7 +124,8 @@ app.delete('/api/halls/:id', async (req, res) => {
 
 // Bookings Routes
 const GET_BOOKINGS_QUERY = `
-  SELECT b.*, r.room_name, 'room' as type,
+  SELECT b.id, b.room_id, b.person_name, b.phone, b.check_in, b.check_out, b.created_at,
+    r.room_name, 'room' as type,
     CASE 
       WHEN b.check_out IS NOT NULL THEN 'Checked Out'
       WHEN b.check_in > NOW() THEN 'Scheduled'
@@ -135,7 +136,8 @@ const GET_BOOKINGS_QUERY = `
 `;
 
 const GET_HALL_BOOKINGS_QUERY = `
-  SELECT b.*, h.hall_name as room_name, 'hall' as type,
+  SELECT b.id, b.hall_id, b.person_name, b.phone, b.check_in, b.check_out, b.created_at,
+    h.hall_name as room_name, 'hall' as type,
     CASE 
       WHEN b.check_out IS NOT NULL THEN 'Checked Out'
       WHEN b.check_in > NOW() THEN 'Scheduled'

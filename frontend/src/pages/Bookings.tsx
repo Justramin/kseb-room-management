@@ -36,21 +36,35 @@ export default function Bookings() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [bookingToDelete, setBookingToDelete] = useState<any>(null);
 
+    // fetchData is used for manual refreshes (after submit/delete)
     const fetchData = useCallback(async () => {
-        setLoading(true);
         try {
             const bookingsData = await request('/bookings');
             setBookings(bookingsData);
         } catch (err: any) {
-            toast.error('Failed to load bookings');
-        } finally {
-            setLoading(false);
+            // Ignore AbortErrors caused by React StrictMode cleanup
+            if (err?.name !== 'AbortError') {
+                toast.error('Failed to load bookings', { id: 'bookings-fetch-error' });
+            }
         }
     }, []);
 
+    // Initial load — uses AbortController to survive React StrictMode double-mount
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        const controller = new AbortController();
+        setLoading(true);
+        request('/bookings')
+            .then(data => setBookings(data))
+            .catch(err => {
+                // ← key check: silently ignore StrictMode cleanup aborts
+                if (err?.name !== 'AbortError') {
+                    toast.error('Failed to load bookings', { id: 'bookings-fetch-error' });
+                }
+            })
+            .finally(() => setLoading(false));
+        return () => controller.abort(); // cleanup on unmount
+    }, []);
+
 
     useEffect(() => {
         const fetchAvailability = async () => {
@@ -76,7 +90,7 @@ export default function Bookings() {
             }
         };
         fetchAvailability();
-    }, [bookingType, formData.check_in, formData.check_out, isEditing]);
+    }, [bookingType, formData.check_in, formData.check_out]); // Removed isEditing to prevent refetch on every modal open if not needed
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
