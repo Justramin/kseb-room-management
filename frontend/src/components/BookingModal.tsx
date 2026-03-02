@@ -98,25 +98,25 @@ export default function BookingModal({ isOpen, isEdit, initialData, onClose, onS
                 return;
             }
 
-            const isRoom = formData.type === 'room';
             const payload = {
-                [isRoom ? 'room_id' : 'hall_id']: formData.facility_id,
+                facility_type: formData.type,
+                facility_id: formData.facility_id,
+                guest_name: formData.person_name,
                 person_name: formData.person_name,
                 phone: formData.phone,
                 check_in: startIso,
                 check_out: endIso
             };
 
-            const endpoint = isRoom ? '/bookings' : '/halls/bookings';
-
             if (isEdit) {
-                await request(`${endpoint}/${initialData.id}`, {
+                const endpoint = formData.type === 'room' ? `/bookings/${initialData.id}` : `/halls/bookings/${initialData.id}`;
+                await request(endpoint, {
                     method: 'PUT',
                     body: JSON.stringify(payload)
                 });
                 toast.success('Booking updated successfully');
             } else {
-                await request(endpoint, {
+                await request('/bookings', {
                     method: 'POST',
                     body: JSON.stringify(payload)
                 });

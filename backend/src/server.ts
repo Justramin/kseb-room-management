@@ -161,36 +161,42 @@ app.get('/api/bookings', async (req, res) => {
 });
 
 app.post('/api/bookings', async (req, res) => {
-    const { room_id, person_name, phone, check_in, check_out } = req.body;
+    const { facility_type, facility_id, guest_name, person_name, phone, check_in, check_out } = req.body;
+    const name = guest_name || person_name;
 
     if (!check_in) {
         return res.status(400).json({ error: 'Check-in time is required.' });
     }
-
-    const checkInDate = new Date(check_in);
-    const finalCheckOut = (check_out && check_out !== "") ? check_out : null;
-    const checkOutDate = finalCheckOut ? new Date(finalCheckOut) : null;
-
-    if (checkOutDate && checkOutDate <= checkInDate) {
-        return res.status(400).json({ error: 'Check-out time must be after check-in time.' });
+    if (!facility_id) {
+        return res.status(400).json({ error: 'Facility ID is required.' });
     }
 
+    const type = facility_type || 'room';
+    const checkInDate = new Date(check_in);
+    const finalCheckOut = (check_out && check_out !== "") ? check_out : null;
+    const checkOutDate = finalCheckOut ? new Date(finalCheckOut) : new Date(checkInDate.getTime() + 60 * 60 * 1000);
+
+    const tableName = type === 'room' ? 'bookings' : 'hall_bookings';
+    const idColumn = type === 'room' ? 'room_id' : 'hall_id';
+
     try {
+        // Step 3: Fix overlap logic
+        // Condition: existing.check_in < new_check_out AND (existing.check_out IS NULL OR existing.check_out > new_check_in)
         const overlapResult = await pool.query(`
-            SELECT * FROM bookings 
-            WHERE room_id = $1 
-            AND check_out IS NULL
-        `, [room_id]);
+            SELECT * FROM ${tableName} 
+            WHERE ${idColumn} = $1 
+            AND (check_in < $3 AND (check_out IS NULL OR check_out > $2))
+        `, [facility_id, checkInDate, checkOutDate]);
 
         if (overlapResult.rows.length > 0) {
-            return res.status(400).json({ error: 'This room already has an active or scheduled booking.' });
+            return res.status(400).json({ error: `This ${type} already has an active or scheduled booking during this time.` });
         }
 
         const result = await pool.query(
-            "INSERT INTO bookings (room_id, person_name, phone, check_in, check_out) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [room_id, person_name, phone, check_in, finalCheckOut]
+            `INSERT INTO ${tableName} (${idColumn}, person_name, phone, check_in, check_out) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [facility_id, name, phone, check_in, finalCheckOut]
         );
-        res.json(result.rows[0]);
+        res.json({ ...result.rows[0], type });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
@@ -218,7 +224,9 @@ app.patch('/api/bookings/:id/checkout', async (req, res) => {
 
 app.put('/api/bookings/:id', async (req, res) => {
     const { id } = req.params;
-    const { room_id, person_name, phone, check_in, check_out } = req.body;
+    const { facility_id, room_id, guest_name, person_name, phone, check_in, check_out } = req.body;
+    const fId = facility_id || room_id;
+    const name = guest_name || person_name;
 
     if (!check_in) {
         return res.status(400).json({ error: 'Check-in time is required.' });
@@ -235,7 +243,7 @@ app.put('/api/bookings/:id', async (req, res) => {
     try {
         const result = await pool.query(
             'UPDATE bookings SET room_id = $1, person_name = $2, phone = $3, check_in = $4, check_out = $5 WHERE id = $6 RETURNING *',
-            [room_id, person_name, phone, check_in, finalCheckOut, id]
+            [fId, name, phone, check_in, finalCheckOut, id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
         res.json(result.rows[0]);
@@ -253,32 +261,27 @@ app.get('/api/halls/bookings', async (req, res) => {
     }
 });
 
-app.post('/api/halls/bookings', async (req, res) => {
-    const { hall_id, person_name, phone, check_in, check_out } = req.body;
+app.post('/api/halls/bookings', (req, res, next) => {
+    req.body.facility_type = 'hall';
+    const mainHandler = app._router.stack.find((s: any) => s.route && s.route.path === '/api/bookings' && s.route.methods.post);
+    if (mainHandler) return mainHandler.route.stack[0].handle(req, res, next);
+    res.status(500).json({ error: 'Core handler not found' });
+});
+
+app.put('/api/halls/bookings/:id', async (req, res) => {
+    const { id } = req.params;
+    const { facility_id, hall_id, guest_name, person_name, phone, check_in, check_out } = req.body;
+    const fId = facility_id || hall_id;
+    const name = guest_name || person_name;
+
     if (!check_in) return res.status(400).json({ error: 'Check-in time is required.' });
 
     const finalCheckOut = (check_out && check_out !== "") ? check_out : null;
 
     try {
         const result = await pool.query(
-            "INSERT INTO hall_bookings (hall_id, person_name, phone, check_in, check_out) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [hall_id, person_name, phone, check_in, finalCheckOut]
-        );
-        res.json(result.rows[0]);
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.put('/api/halls/bookings/:id', async (req, res) => {
-    const { id } = req.params;
-    const { hall_id, person_name, phone, check_in, check_out } = req.body;
-    const finalCheckOut = (check_out && check_out !== "") ? check_out : null;
-
-    try {
-        const result = await pool.query(
             'UPDATE hall_bookings SET hall_id = $1, person_name = $2, phone = $3, check_in = $4, check_out = $5 WHERE id = $6 RETURNING *',
-            [hall_id, person_name, phone, check_in, finalCheckOut, id]
+            [fId, name, phone, check_in, finalCheckOut, id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
         res.json(result.rows[0]);

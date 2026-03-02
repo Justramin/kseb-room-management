@@ -82,25 +82,25 @@ export default function Bookings() {
         e.preventDefault();
 
         try {
-            const isRoom = bookingType === 'room';
             const payload = {
-                [isRoom ? 'room_id' : 'hall_id']: formData.facility_id,
-                person_name: formData.person_name,
+                facility_type: bookingType,
+                facility_id: formData.facility_id,
+                guest_name: formData.person_name, // User requested guest_name in payload
+                person_name: formData.person_name, // Maintain person_name for backend insert
                 phone: formData.phone,
                 check_in: formData.check_in,
                 check_out: formData.check_out || null
             };
 
-            const baseUrl = isRoom ? '/bookings' : '/halls/bookings';
-
             if (isEditing) {
-                await request(`${baseUrl}/${isEditing.id}`, {
+                const endpoint = bookingType === 'room' ? `/bookings/${isEditing.id}` : `/halls/bookings/${isEditing.id}`;
+                await request(endpoint, {
                     method: 'PUT',
                     body: JSON.stringify(payload)
                 });
                 toast.success('Booking updated successfully');
             } else {
-                await request(baseUrl, {
+                await request('/bookings', {
                     method: 'POST',
                     body: JSON.stringify(payload)
                 });
