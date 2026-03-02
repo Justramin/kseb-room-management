@@ -3,21 +3,24 @@ import { request } from '../api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
-import { Home, CheckCircle, XCircle, Calendar as CalendarIcon, ArrowRight, ClipboardList, Plus } from 'lucide-react';
+import { Home, CheckCircle, XCircle, Building2 } from 'lucide-react';
 
 export default function Dashboard() {
     const [stats, setStats] = useState<any>(null);
     const [availableRooms, setAvailableRooms] = useState<any[]>([]);
+    const [availableHalls, setAvailableHalls] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchData = useCallback(async () => {
         try {
-            const [dashboardStats, availableRoomsData] = await Promise.all([
+            const [dashboardStats, availableRoomsData, availableHallsData] = await Promise.all([
                 request('/dashboard'),
-                request('/rooms/available')
+                request('/rooms/availability'),
+                request('/halls/availability')
             ]);
             setStats(dashboardStats);
-            setAvailableRooms(availableRoomsData);
+            setAvailableRooms(availableRoomsData.filter((r: any) => r.status === 'Available'));
+            setAvailableHalls(availableHallsData.filter((h: any) => h.status === 'Available'));
         } catch (err) {
             console.error(err);
         } finally {
@@ -31,10 +34,11 @@ export default function Dashboard() {
         return () => clearInterval(interval);
     }, [fetchData]);
 
-    const handleCheckout = async (id: number) => {
+    const handleCheckout = async (id: number, type: 'room' | 'hall') => {
         try {
-            await request(`/bookings/${id}/checkout`, { method: 'PATCH' });
-            toast.success('Room checked out successfully');
+            const endpoint = type === 'room' ? `/bookings/${id}/checkout` : `/halls/bookings/${id}/checkout`;
+            await request(endpoint, { method: 'PATCH' });
+            toast.success(`${type === 'room' ? 'Room' : 'Hall'} checked out successfully`);
             fetchData();
         } catch (err: any) {
             toast.error(err.message || 'Checkout failed');
@@ -66,91 +70,92 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            <div className="grid-cards" style={{ marginBottom: '2rem' }}>
-                <Link to="/rooms/summary" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="stat-icon rooms-icon"><Home size={24} /></div>
-                    <div className="stat-content">
-                        <h3>Total Rooms</h3>
-                        <div className="value">{stats.totalRooms}</div>
-                    </div>
-                </Link>
-                <Link to="/rooms/available" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="stat-icon available-icon"><CheckCircle size={24} /></div>
-                    <div className="stat-content">
-                        <h3>Available Today</h3>
-                        <div className="value">{stats.availableRoomsCountToday}</div>
-                    </div>
-                </Link>
-                <Link to="/bookings/today" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="stat-icon booked-icon"><XCircle size={24} /></div>
-                    <div className="stat-content">
-                        <h3>Booked Today</h3>
-                        <div className="value">{stats.bookedRoomsCountToday}</div>
-                    </div>
-                </Link>
-                <Link to={stats.nextUpcomingBooking ? `/bookings/${stats.nextUpcomingBooking.id}` : '/bookings/upcoming'} className="stat-card upcoming-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="stat-icon next-icon"><CalendarIcon size={24} /></div>
-                    <div className="stat-content">
-                        <h3>Next Booking</h3>
-                        <div className="next-booking-info">
-                            {stats.nextUpcomingBooking ? (
-                                <>
-                                    <div className="next-room">{stats.nextUpcomingBooking.room_name}</div>
-                                    <div className="next-time">
-                                        {format(new Date(stats.nextUpcomingBooking.check_in), 'dd MMM yyyy | HH:mm')}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="no-upcoming">No upcoming entries</div>
-                            )}
+            {/* Room Metrics */}
+            <div style={{ marginBottom: '1rem' }}>
+                <h3 className="flex items-center gap-2 mb-4" style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>
+                    <Home size={18} /> ROOM METRICS
+                </h3>
+                <div className="grid-cards">
+                    <Link to="/rooms" className="stat-card">
+                        <div className="stat-icon rooms-icon"><Home size={24} /></div>
+                        <div className="stat-content">
+                            <h3>Total Rooms</h3>
+                            <div className="value">{stats.rooms.totalRooms}</div>
+                        </div>
+                    </Link>
+                    <Link to="/rooms" className="stat-card">
+                        <div className="stat-icon available-icon"><CheckCircle size={24} /></div>
+                        <div className="stat-content">
+                            <h3>Available Rooms</h3>
+                            <div className="value">{stats.rooms.availableRoomsCountToday}</div>
+                        </div>
+                    </Link>
+                    <div className="stat-card">
+                        <div className="stat-icon booked-icon"><XCircle size={24} /></div>
+                        <div className="stat-content">
+                            <h3>Booked Today</h3>
+                            <div className="value">{stats.rooms.bookedRoomsCountToday}</div>
                         </div>
                     </div>
-                </Link>
+                </div>
+            </div>
+
+            {/* Hall Metrics */}
+            <div style={{ marginBottom: '2rem' }}>
+                <h3 className="flex items-center gap-2 mb-4" style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>
+                    <Building2 size={18} /> HALL METRICS
+                </h3>
+                <div className="grid-cards">
+                    <Link to="/halls" className="stat-card">
+                        <div className="stat-icon rooms-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}><Building2 size={24} /></div>
+                        <div className="stat-content">
+                            <h3>Total Halls</h3>
+                            <div className="value">{stats.halls.totalHalls}</div>
+                        </div>
+                    </Link>
+                    <Link to="/halls" className="stat-card">
+                        <div className="stat-icon available-icon" style={{ background: '#ecfdf5', color: '#059669' }}><CheckCircle size={24} /></div>
+                        <div className="stat-content">
+                            <h3>Available Halls</h3>
+                            <div className="value">{stats.halls.availableHallsCountToday}</div>
+                        </div>
+                    </Link>
+                    <div className="stat-card">
+                        <div className="stat-icon booked-icon" style={{ background: '#fff5f5', color: '#e53e3e' }}><XCircle size={24} /></div>
+                        <div className="stat-content">
+                            <h3>Hall Booked Today</h3>
+                            <div className="value">{stats.halls.bookedHallsCountToday}</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="dashboard-content-grid">
+                {/* Rooms Today */}
                 <div className="card table-responsive">
                     <div className="card-header">
                         <h3 className="flex items-center gap-2">
-                            <XCircle size={20} className="text-danger" />
-                            Currently Occupied
+                            <Home size={20} className="text-danger" />
+                            Occupied Rooms
                         </h3>
-                        <Link to="/bookings" className="view-all-link">New Check-in <Plus size={16} /></Link>
                     </div>
-                    {!stats.currentlyBookedRooms || stats.currentlyBookedRooms.length === 0 ? (
+                    {stats.rooms.currentlyBookedRooms.length === 0 ? (
                         <div className="empty-state-compact">
-                            <CheckCircle size={32} className="text-success" />
-                            <p>All rooms are currently vacant.</p>
+                            <p>No rooms currently occupied.</p>
                         </div>
                     ) : (
                         <table>
                             <thead>
-                                <tr>
-                                    <th>Room Name</th>
-                                    <th>Guest</th>
-                                    <th>Check-in</th>
-                                    <th style={{ textAlign: 'right' }}>Action</th>
-                                </tr>
+                                <tr><th>Room</th><th>Guest</th><th>Check-in</th><th>Action</th></tr>
                             </thead>
                             <tbody>
-                                {stats.currentlyBookedRooms.map((booking: any) => (
-                                    <tr key={booking.id}>
-                                        <td style={{ fontWeight: 600 }}>{booking.room_name}</td>
+                                {stats.rooms.currentlyBookedRooms.map((b: any) => (
+                                    <tr key={b.id}>
+                                        <td style={{ fontWeight: 600 }}>{b.room_name}</td>
+                                        <td>{b.person_name}</td>
+                                        <td>{format(new Date(b.check_in), 'dd MMM | HH:mm')}</td>
                                         <td>
-                                            <div style={{ fontWeight: 500 }}>{booking.person_name}</div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{booking.phone}</div>
-                                        </td>
-                                        <td>{format(new Date(booking.check_in), 'dd MMM yyyy | HH:mm')}</td>
-                                        <td>
-                                            <div className="flex justify-end">
-                                                <button
-                                                    onClick={() => handleCheckout(booking.id)}
-                                                    className="btn-danger"
-                                                    style={{ padding: '4px 12px', fontSize: '0.85rem' }}
-                                                >
-                                                    Checkout
-                                                </button>
-                                            </div>
+                                            <button onClick={() => handleCheckout(b.id, 'room')} className="btn-danger" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>Checkout</button>
                                         </td>
                                     </tr>
                                 ))}
@@ -159,44 +164,78 @@ export default function Dashboard() {
                     )}
                 </div>
 
+                {/* Halls Today */}
                 <div className="card table-responsive">
                     <div className="card-header">
                         <h3 className="flex items-center gap-2">
-                            <CheckCircle size={20} className="text-success" />
-                            Available Rooms
+                            <Building2 size={20} style={{ color: '#7c3aed' }} />
+                            Occupied Halls
                         </h3>
-                        <Link to="/rooms" className="view-all-link">Manage Rooms <ArrowRight size={16} /></Link>
                     </div>
-                    {availableRooms.length === 0 ? (
+                    {stats.halls.currentlyBookedHalls.length === 0 ? (
                         <div className="empty-state-compact">
-                            <ClipboardList size={32} />
-                            <p>No rooms are currently available.</p>
+                            <p>No halls currently occupied.</p>
                         </div>
                     ) : (
                         <table>
                             <thead>
-                                <tr>
-                                    <th>Room Name</th>
-                                    <th>Capacity</th>
-                                    <th>Action</th>
-                                </tr>
+                                <tr><th>Hall</th><th>Guest</th><th>Check-in</th><th>Action</th></tr>
                             </thead>
                             <tbody>
-                                {availableRooms.map((room: any) => (
-                                    <tr key={room.id}>
-                                        <td style={{ fontWeight: 600 }}>{room.room_name}</td>
-                                        <td>{room.capacity} Persons</td>
+                                {stats.halls.currentlyBookedHalls.map((b: any) => (
+                                    <tr key={b.id}>
+                                        <td style={{ fontWeight: 600 }}>{b.room_name}</td>
+                                        <td>{b.person_name}</td>
+                                        <td>{format(new Date(b.check_in), 'dd MMM | HH:mm')}</td>
                                         <td>
-                                            <div className="flex justify-end">
-                                                <Link
-                                                    to={`/bookings?room=${room.id}`}
-                                                    className="btn-primary"
-                                                    style={{ padding: '4px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                >
-                                                    <Plus size={14} /> Check-in
-                                                </Link>
-                                            </div>
+                                            <button onClick={() => handleCheckout(b.id, 'hall')} className="btn-danger" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>Checkout</button>
                                         </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {/* Available Rooms grid */}
+                <div className="card table-responsive">
+                    <div className="card-header">
+                        <h3>Available Rooms</h3>
+                    </div>
+                    {availableRooms.length === 0 ? (
+                        <div className="empty-state-compact"><p>None available.</p></div>
+                    ) : (
+                        <table>
+                            <thead><tr><th>Room</th><th>Cap</th><th>Action</th></tr></thead>
+                            <tbody>
+                                {availableRooms.map((r: any) => (
+                                    <tr key={r.id}>
+                                        <td style={{ fontWeight: 600 }}>{r.room_name}</td>
+                                        <td>{r.capacity}</td>
+                                        <td><Link to={`/bookings?room=${r.id}`} className="btn-primary" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>Check-in</Link></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {/* Available Halls grid */}
+                <div className="card table-responsive">
+                    <div className="card-header">
+                        <h3>Available Halls</h3>
+                    </div>
+                    {availableHalls.length === 0 ? (
+                        <div className="empty-state-compact"><p>None available.</p></div>
+                    ) : (
+                        <table>
+                            <thead><tr><th>Hall</th><th>Cap</th><th>Action</th></tr></thead>
+                            <tbody>
+                                {availableHalls.map((h: any) => (
+                                    <tr key={h.id}>
+                                        <td style={{ fontWeight: 600 }}>{h.hall_name}</td>
+                                        <td>{h.capacity}</td>
+                                        <td><Link to={`/bookings?hall=${h.id}`} className="btn-primary" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>Check-in</Link></td>
                                     </tr>
                                 ))}
                             </tbody>

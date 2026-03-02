@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Calendar, DoorOpen, History } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Calendar, DoorOpen, Building2, History } from 'lucide-react';
 
 export function Sidebar() {
     const location = useLocation();
@@ -22,6 +22,10 @@ export function Sidebar() {
             <Link to="/rooms" className={path === '/rooms' ? 'active' : ''}>
                 <DoorOpen size={20} />
                 <span>Rooms</span>
+            </Link>
+            <Link to="/halls" className={path === '/halls' ? 'active' : ''}>
+                <Building2 size={20} />
+                <span>Halls</span>
             </Link>
             <Link to="/history" className={path === '/history' ? 'active' : ''}>
                 <History size={20} />

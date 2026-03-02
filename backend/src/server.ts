@@ -37,11 +37,11 @@ app.get('/api/rooms', async (_req, res) => {
 });
 
 app.post('/api/rooms', async (req, res) => {
-    const { room_name, capacity } = req.body;
+    const { room_name, capacity, attached_bathroom } = req.body;
     try {
         const result = await pool.query(
-            'INSERT INTO rooms (room_name, capacity) VALUES ($1, $2) RETURNING *',
-            [room_name, capacity]
+            'INSERT INTO rooms (room_name, capacity, attached_bathroom) VALUES ($1, $2, $3) RETURNING *',
+            [room_name, capacity, attached_bathroom || false]
         );
         res.json(result.rows[0]);
     } catch (err: any) {
@@ -51,11 +51,11 @@ app.post('/api/rooms', async (req, res) => {
 
 app.put('/api/rooms/:id', async (req, res) => {
     const { id } = req.params;
-    const { room_name, capacity } = req.body;
+    const { room_name, capacity, attached_bathroom } = req.body;
     try {
         const result = await pool.query(
-            'UPDATE rooms SET room_name = $1, capacity = $2 WHERE id = $3 RETURNING *',
-            [room_name, capacity, id]
+            'UPDATE rooms SET room_name = $1, capacity = $2, attached_bathroom = $3 WHERE id = $4 RETURNING *',
+            [room_name, capacity, attached_bathroom || false, id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Room not found' });
         res.json(result.rows[0]);
@@ -74,9 +74,57 @@ app.delete('/api/rooms/:id', async (req, res) => {
     }
 });
 
+// Halls Routes
+app.get('/api/halls', async (_req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM halls ORDER BY id DESC');
+        res.json(result.rows);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/halls', async (req, res) => {
+    const { hall_name, capacity, attached_bathroom } = req.body;
+    try {
+        const result = await pool.query(
+            'INSERT INTO halls (hall_name, capacity, attached_bathroom) VALUES ($1, $2, $3) RETURNING *',
+            [hall_name, capacity, attached_bathroom || false]
+        );
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/halls/:id', async (req, res) => {
+    const { id } = req.params;
+    const { hall_name, capacity, attached_bathroom } = req.body;
+    try {
+        const result = await pool.query(
+            'UPDATE halls SET hall_name = $1, capacity = $2, attached_bathroom = $3 WHERE id = $4 RETURNING *',
+            [hall_name, capacity, attached_bathroom || false, id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Hall not found' });
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/halls/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.query('DELETE FROM halls WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Bookings Routes
 const GET_BOOKINGS_QUERY = `
-  SELECT b.*, r.room_name,
+  SELECT b.*, r.room_name, 'room' as type,
     CASE 
       WHEN b.check_out IS NOT NULL THEN 'Checked Out'
       WHEN b.check_in > NOW() THEN 'Scheduled'
@@ -86,9 +134,26 @@ const GET_BOOKINGS_QUERY = `
   JOIN rooms r ON b.room_id = r.id 
 `;
 
+const GET_HALL_BOOKINGS_QUERY = `
+  SELECT b.*, h.hall_name as room_name, 'hall' as type,
+    CASE 
+      WHEN b.check_out IS NOT NULL THEN 'Checked Out'
+      WHEN b.check_in > NOW() THEN 'Scheduled'
+      ELSE 'Checked In'
+    END as status
+  FROM hall_bookings b 
+  JOIN halls h ON b.hall_id = h.id 
+`;
+
 app.get('/api/bookings', async (req, res) => {
     try {
-        const result = await pool.query(`${GET_BOOKINGS_QUERY} ORDER BY b.check_in DESC`);
+        const unifiedQuery = `
+            (${GET_BOOKINGS_QUERY})
+            UNION ALL
+            (${GET_HALL_BOOKINGS_QUERY})
+            ORDER BY check_in DESC
+        `;
+        const result = await pool.query(unifiedQuery);
         res.json(result.rows);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -179,11 +244,105 @@ app.put('/api/bookings/:id', async (req, res) => {
     }
 });
 
+app.get('/api/halls/bookings', async (req, res) => {
+    try {
+        const result = await pool.query(`${GET_HALL_BOOKINGS_QUERY} ORDER BY b.check_in DESC`);
+        res.json(result.rows);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/halls/bookings', async (req, res) => {
+    const { hall_id, person_name, phone, check_in, check_out } = req.body;
+    if (!check_in) return res.status(400).json({ error: 'Check-in time is required.' });
+
+    const finalCheckOut = (check_out && check_out !== "") ? check_out : null;
+
+    try {
+        const result = await pool.query(
+            "INSERT INTO hall_bookings (hall_id, person_name, phone, check_in, check_out) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+            [hall_id, person_name, phone, check_in, finalCheckOut]
+        );
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/halls/bookings/:id', async (req, res) => {
+    const { id } = req.params;
+    const { hall_id, person_name, phone, check_in, check_out } = req.body;
+    const finalCheckOut = (check_out && check_out !== "") ? check_out : null;
+
+    try {
+        const result = await pool.query(
+            'UPDATE hall_bookings SET hall_id = $1, person_name = $2, phone = $3, check_in = $4, check_out = $5 WHERE id = $6 RETURNING *',
+            [hall_id, person_name, phone, check_in, finalCheckOut, id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.patch('/api/halls/bookings/:id/checkout', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query(
+            "UPDATE hall_bookings SET check_out = NOW(), status = 'Checked Out' WHERE id = $1 RETURNING *",
+            [id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/halls/bookings/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.query('DELETE FROM hall_bookings WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.delete('/api/bookings/:id', async (req, res) => {
     const { id } = req.params;
     try {
         await pool.query('DELETE FROM bookings WHERE id = $1', [id]);
         res.json({ success: true });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/halls/availability', async (req, res) => {
+    const { check_in, check_out } = req.query;
+    try {
+        const hallsResult = await pool.query('SELECT * FROM halls ORDER BY hall_name ASC');
+        const halls = hallsResult.rows;
+
+        let timeCheckIn = check_in ? new Date(check_in as string) : new Date();
+        let timeCheckOut = check_out ? new Date(check_out as string) : new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
+
+        const overlapResult = await pool.query(`
+            SELECT hall_id FROM hall_bookings 
+            WHERE (check_in < $2 AND (check_out IS NULL OR check_out > $1))
+        `, [timeCheckIn, timeCheckOut]);
+
+        const bookedIds = new Set(overlapResult.rows.map(r => r.hall_id));
+
+        const availability = halls.map(h => ({
+            ...h,
+            status: bookedIds.has(h.id) ? 'Booked' : 'Available'
+        }));
+
+        res.json(availability);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
@@ -219,12 +378,46 @@ app.get('/api/dashboard', async (_req, res) => {
             LIMIT 1
         `);
 
+        // Hall Stats
+        const hallsCountResult = await pool.query('SELECT COUNT(*) FROM halls');
+        const totalHalls = parseInt(hallsCountResult.rows[0].count, 10);
+
+        const currentlyBookedHallsResult = await pool.query(`
+            ${GET_HALL_BOOKINGS_QUERY}
+            WHERE b.check_in <= NOW() AND b.check_out IS NULL
+            ORDER BY b.check_in ASC
+        `);
+
+        const todayHallBookingsCountResult = await pool.query(`
+            SELECT COUNT(*) FROM hall_bookings
+            WHERE DATE(check_in) = CURRENT_DATE
+        `);
+
+        const availableHallsCount = totalHalls - currentlyBookedHallsResult.rows.length;
+
+        // Next upcoming hall booking
+        const nextHallBookingResult = await pool.query(`
+            ${GET_HALL_BOOKINGS_QUERY}
+            WHERE b.check_in > NOW() AND b.check_out IS NULL
+            ORDER BY b.check_in ASC
+            LIMIT 1
+        `);
+
         res.json({
-            totalRooms,
-            bookedRoomsCountToday: parseInt(todayBookingsCountResult.rows[0].count, 10),
-            availableRoomsCountToday: availableCount,
-            nextUpcomingBooking: nextBookingResult.rows[0] || null,
-            currentlyBookedRooms: currentlyBookedResult.rows
+            rooms: {
+                totalRooms,
+                bookedRoomsCountToday: parseInt(todayBookingsCountResult.rows[0].count, 10),
+                availableRoomsCountToday: availableCount,
+                nextUpcomingBooking: nextBookingResult.rows[0] || null,
+                currentlyBookedRooms: currentlyBookedResult.rows
+            },
+            halls: {
+                totalHalls,
+                bookedHallsCountToday: parseInt(todayHallBookingsCountResult.rows[0].count, 10),
+                availableHallsCountToday: availableHallsCount,
+                nextUpcomingBooking: nextHallBookingResult.rows[0] || null,
+                currentlyBookedHalls: currentlyBookedHallsResult.rows
+            }
         });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -238,38 +431,21 @@ app.get('/api/rooms/availability', async (req, res) => {
         const rooms = roomsResult.rows;
 
         let timeCheckIn = check_in ? new Date(check_in as string) : new Date();
-        let timeCheckOut = check_out ? new Date(check_out as string) : new Date();
+        let timeCheckOut = check_out ? new Date(check_out as string) : new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
 
         if (isNaN(timeCheckIn.getTime())) timeCheckIn = new Date();
-        if (isNaN(timeCheckOut.getTime())) timeCheckOut = new Date();
+        if (isNaN(timeCheckOut.getTime())) timeCheckOut = new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
 
         const overlapResult = await pool.query(`
-      SELECT room_id FROM bookings 
-      WHERE ($1 < check_out AND $2 > check_in)
-    `, [timeCheckIn, timeCheckOut]);
+            SELECT room_id FROM bookings 
+            WHERE (check_in < $2 AND (check_out IS NULL OR check_out > $1))
+        `, [timeCheckIn, timeCheckOut]);
 
-        const bookedRoomIds = new Set(overlapResult.rows.map(r => r.room_id));
-
-        const nextBookingsResult = await pool.query(`
-      SELECT room_id, check_in FROM bookings
-      WHERE check_in >= $1
-      ORDER BY check_in ASC
-    `, [timeCheckIn]);
-
-        const nextBookingsMap = new Map();
-        for (const b of nextBookingsResult.rows) {
-            if (!nextBookingsMap.has(b.room_id)) {
-                nextBookingsMap.set(b.room_id, b.check_in);
-            }
-        }
+        const bookedIds = new Set(overlapResult.rows.map(r => r.room_id));
 
         const availability = rooms.map(r => ({
-            id: r.id,
-            room_name: r.room_name,
-            capacity: r.capacity,
-            location: r.location,
-            status: bookedRoomIds.has(r.id) ? 'Booked' : 'Available',
-            next_booking_time: nextBookingsMap.get(r.id) || null
+            ...r,
+            status: bookedIds.has(r.id) ? 'Booked' : 'Available'
         }));
 
         res.json(availability);
@@ -363,9 +539,13 @@ app.post('/api/init', async (_req, res) => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Migration: Remove location from rooms, make status derived
+      -- Migration: Add attached_bathroom to rooms, create halls and hall_bookings
       DO $$ 
       BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='rooms' AND COLUMN_NAME='attached_bathroom') THEN
+          ALTER TABLE rooms ADD COLUMN attached_bathroom BOOLEAN DEFAULT FALSE;
+        END IF;
+
         IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='rooms' AND COLUMN_NAME='location') THEN
           ALTER TABLE rooms DROP COLUMN location;
         END IF;
@@ -376,6 +556,25 @@ app.post('/api/init', async (_req, res) => {
           ALTER TABLE bookings ADD COLUMN status TEXT;
         END IF;
       END $$;
+
+      CREATE TABLE IF NOT EXISTS halls (
+        id SERIAL PRIMARY KEY,
+        hall_name TEXT UNIQUE NOT NULL,
+        capacity INTEGER NOT NULL,
+        attached_bathroom BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS hall_bookings (
+        id SERIAL PRIMARY KEY,
+        hall_id INTEGER REFERENCES halls(id) ON DELETE CASCADE,
+        person_name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        check_in TIMESTAMP NOT NULL,
+        check_out TIMESTAMP,
+        status TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
         res.json({ success: true });
     } catch (err: any) {

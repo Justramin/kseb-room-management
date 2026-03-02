@@ -1,111 +1,111 @@
 import { useState, useEffect } from 'react';
 import { request } from '../api';
 import toast from 'react-hot-toast';
-import { Loader2, Plus, Edit2, Trash2, Home, Users } from 'lucide-react';
+import { Building2, Plus, Edit2, Trash2, Users, Loader2 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
-export default function Rooms() {
-    const [rooms, setRooms] = useState<any[]>([]);
+export default function Halls() {
+    const [halls, setHalls] = useState<any[]>([]);
     const [availability, setAvailability] = useState<any[]>([]);
     const [isEditing, setIsEditing] = useState<any>(null);
-    const [formData, setFormData] = useState({ room_name: '', capacity: 1, attached_bathroom: false });
+    const [formData, setFormData] = useState({ hall_name: '', capacity: 1, attached_bathroom: false });
     const [loading, setLoading] = useState(true);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [roomToDelete, setRoomToDelete] = useState<number | null>(null);
+    const [hallToDelete, setHallToDelete] = useState<number | null>(null);
 
-    const fetchRooms = async () => {
+    const fetchHalls = async () => {
         setLoading(true);
         try {
             const [data, availData] = await Promise.all([
-                request('/rooms'),
-                request('/rooms/availability')
+                request('/halls'),
+                request('/halls/availability')
             ]);
-            setRooms(data);
+            setHalls(data);
             setAvailability(availData);
         } catch (err: any) {
-            toast.error('Failed to load rooms');
+            toast.error('Failed to load halls');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchRooms();
+        fetchHalls();
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             if (isEditing) {
-                await request(`/rooms/${isEditing.id}`, {
+                await request(`/halls/${isEditing.id}`, {
                     method: 'PUT',
                     body: JSON.stringify(formData)
                 });
-                toast.success('Room updated successfully');
+                toast.success('Hall updated successfully');
             } else {
-                await request('/rooms', {
+                await request('/halls', {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
-                toast.success('Room created successfully');
+                toast.success('Hall created successfully');
             }
-            setFormData({ room_name: '', capacity: 1, attached_bathroom: false });
+            setFormData({ hall_name: '', capacity: 1, attached_bathroom: false });
             setIsEditing(null);
-            fetchRooms();
+            fetchHalls();
         } catch (err: any) {
             toast.error(err.message);
         }
     };
 
-    const handleEdit = (room: any) => {
-        setIsEditing(room);
+    const handleEdit = (hall: any) => {
+        setIsEditing(hall);
         setFormData({
-            room_name: room.room_name,
-            capacity: room.capacity,
-            attached_bathroom: room.attached_bathroom || false
+            hall_name: hall.hall_name,
+            capacity: hall.capacity,
+            attached_bathroom: hall.attached_bathroom || false
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleDeleteClick = (id: number) => {
-        setRoomToDelete(id);
+        setHallToDelete(id);
         setIsDeleteModalOpen(true);
     };
 
     const confirmDelete = async () => {
-        if (!roomToDelete) return;
+        if (!hallToDelete) return;
         try {
-            await request(`/rooms/${roomToDelete}`, { method: 'DELETE' });
-            toast.success('Room deleted successfully');
-            fetchRooms();
+            await request(`/halls/${hallToDelete}`, { method: 'DELETE' });
+            toast.success('Hall deleted successfully');
+            fetchHalls();
         } catch (err: any) {
             toast.error(err.message);
         } finally {
             setIsDeleteModalOpen(false);
-            setRoomToDelete(null);
+            setHallToDelete(null);
         }
     };
 
     return (
         <div className="rooms-page">
             <div className="page-header">
-                <h2>Rooms Management</h2>
+                <h2 className="flex items-center gap-2"><Building2 size={24} /> Halls Management</h2>
                 {loading && <Loader2 size={20} className="spinner" />}
             </div>
 
             <div className="card mb-4">
                 <div className="card-header">
-                    <h3>{isEditing ? 'Edit Room' : 'Add New Room'}</h3>
+                    <h3>{isEditing ? 'Edit Hall' : 'Add New Hall'}</h3>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div className="form-row" style={{ flexWrap: 'wrap', gap: '1.5rem' }}>
                         <div className="form-group flex-1" style={{ minWidth: '200px' }}>
-                            <label>Room Name</label>
+                            <label>Hall Name</label>
                             <input
                                 required
-                                value={formData.room_name}
-                                onChange={e => setFormData({ ...formData, room_name: e.target.value })}
-                                placeholder="E.g. VIP Suite, Room 101"
+                                value={formData.hall_name}
+                                onChange={e => setFormData({ ...formData, hall_name: e.target.value })}
+                                placeholder="E.g. Main Hall, Conference Hall"
                             />
                         </div>
                         <div className="form-group" style={{ width: '120px' }}>
@@ -131,12 +131,12 @@ export default function Rooms() {
                     </div>
                     <div className="flex gap-2 justify-end" style={{ marginTop: '1rem' }}>
                         {isEditing && (
-                            <button type="button" className="btn-secondary" onClick={() => { setIsEditing(null); setFormData({ room_name: '', capacity: 1, attached_bathroom: false }); }}>
+                            <button type="button" className="btn-secondary" onClick={() => { setIsEditing(null); setFormData({ hall_name: '', capacity: 1, attached_bathroom: false }); }}>
                                 Cancel
                             </button>
                         )}
                         <button type="submit" className="btn-primary">
-                            {isEditing ? <><Edit2 size={16} /> Update Room</> : <><Plus size={16} /> Add Room</>}
+                            {isEditing ? <><Edit2 size={16} /> Update Hall</> : <><Plus size={16} /> Add Hall</>}
                         </button>
                     </div>
                 </form>
@@ -144,41 +144,41 @@ export default function Rooms() {
 
             <div className="card">
                 <div className="card-header">
-                    <h3>All Rooms</h3>
+                    <h3>All Halls</h3>
                 </div>
-                {rooms.length === 0 && !loading ? (
+                {halls.length === 0 && !loading ? (
                     <div className="empty-state-compact">
-                        <Home size={32} />
-                        <p>No rooms found. Add some rooms to get started.</p>
+                        <Building2 size={32} />
+                        <p>No halls found. Add some halls to get started.</p>
                     </div>
                 ) : (
                     <div className="table-responsive">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Room Name</th>
+                                    <th>Hall Name</th>
                                     <th>Capacity</th>
                                     <th>Status Now</th>
                                     <th style={{ textAlign: 'right' }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {rooms.map(room => {
-                                    const availRoom = availability.find(r => r.id === room.id);
-                                    const isAvailable = availRoom ? (availRoom.status === 'Available') : true;
+                                {halls.map(hall => {
+                                    const availHall = availability.find(h => h.id === hall.id);
+                                    const isAvailable = availHall ? (availHall.status === 'Available') : true;
                                     return (
-                                        <tr key={room.id}>
+                                        <tr key={hall.id}>
                                             <td style={{ fontWeight: 600 }}>
                                                 <div className="flex items-center gap-2">
-                                                    {room.room_name}
-                                                    {room.attached_bathroom && (
+                                                    {hall.hall_name}
+                                                    {hall.attached_bathroom && (
                                                         <span style={{ fontSize: '0.7rem', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
                                                             ATTACHED
                                                         </span>
                                                     )}
                                                 </div>
                                             </td>
-                                            <td><Users size={14} style={{ marginRight: '4px' }} /> {room.capacity}</td>
+                                            <td><Users size={14} style={{ marginRight: '4px' }} /> {hall.capacity}</td>
                                             <td>
                                                 <span className={`status-badge ${isAvailable ? 'available' : 'occupied'}`}>
                                                     {isAvailable ? 'Available' : 'Booked'}
@@ -186,10 +186,10 @@ export default function Rooms() {
                                             </td>
                                             <td>
                                                 <div className="flex gap-2 justify-end">
-                                                    <button className="btn-secondary" style={{ padding: '6px 12px' }} onClick={() => handleEdit(room)}>
+                                                    <button className="btn-secondary" style={{ padding: '6px 12px' }} onClick={() => handleEdit(hall)}>
                                                         <Edit2 size={14} />
                                                     </button>
-                                                    <button className="btn-danger" style={{ padding: '6px 12px' }} onClick={() => handleDeleteClick(room.id)}>
+                                                    <button className="btn-danger" style={{ padding: '6px 12px' }} onClick={() => handleDeleteClick(hall.id)}>
                                                         <Trash2 size={14} />
                                                     </button>
                                                 </div>
@@ -205,11 +205,11 @@ export default function Rooms() {
 
             <ConfirmationModal
                 isOpen={isDeleteModalOpen}
-                title="Delete Room"
-                message="Are you sure you want to delete this room? All associated bookings will also be deleted."
+                title="Delete Hall"
+                message="Are you sure you want to delete this hall? All associated bookings will also be deleted."
                 onConfirm={confirmDelete}
                 onCancel={() => setIsDeleteModalOpen(false)}
-                confirmText="Delete Room"
+                confirmText="Delete Hall"
                 type="danger"
             />
         </div>

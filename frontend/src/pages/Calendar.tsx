@@ -26,11 +26,11 @@ export default function Calendar() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState<any>(null);
     const [isEdit, setIsEdit] = useState(false);
+    const [filterType, setFilterType] = useState<'all' | 'room' | 'hall'>('all');
 
     const fetchBookings = useCallback(async () => {
         try {
             setLoading(true);
-            // Fetch all bookings for now, or could optimize to fetch by month range
             const data = await request('/bookings');
             setBookings(data);
         } catch (err: any) {
@@ -49,6 +49,11 @@ export default function Calendar() {
     const goToNextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
     const goToToday = () => setCurrentMonth(new Date());
 
+    const filteredBookings = useMemo(() => {
+        if (filterType === 'all') return bookings;
+        return bookings.filter(b => b.type === filterType);
+    }, [bookings, filterType]);
+
     const calendarGrid = useMemo(() => {
         const monthStart = startOfMonth(currentMonth);
         const monthEnd = endOfMonth(monthStart);
@@ -63,7 +68,7 @@ export default function Calendar() {
 
     const getBookingsForDate = (date: Date) => {
         const d = startOfDay(date);
-        return bookings.filter(b => {
+        return filteredBookings.filter(b => {
             const bStart = startOfDay(parseISO(b.check_in));
             const bEnd = b.check_out ? startOfDay(parseISO(b.check_out)) : bStart;
 
@@ -94,11 +99,34 @@ export default function Calendar() {
                     </div>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>Booking Calendar</h2>
-                        <p style={{ color: 'var(--text-muted)', margin: 0 }}>View and manage room assignments</p>
+                        <p style={{ color: 'var(--text-muted)', margin: 0 }}>View assignments for Rooms & Halls</p>
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {loading && <Loader2 size={20} className="spinner" style={{ color: 'var(--primary-color)' }} />}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <div className="flex bg-gray-100 p-1 rounded-lg" style={{ background: '#f3f4f6', padding: '4px' }}>
+                        <button
+                            onClick={() => setFilterType('all')}
+                            className={`px-3 py-1 rounded-md text-xs font-medium ${filterType === 'all' ? 'bg-white shadow' : 'text-gray-500'}`}
+                            style={filterType === 'all' ? { background: 'white', border: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' } : { background: 'transparent', border: 'none' }}
+                        >
+                            Both
+                        </button>
+                        <button
+                            onClick={() => setFilterType('room')}
+                            className={`px-3 py-1 rounded-md text-xs font-medium ${filterType === 'room' ? 'bg-white shadow' : 'text-gray-500'}`}
+                            style={filterType === 'room' ? { background: 'white', border: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' } : { background: 'transparent', border: 'none' }}
+                        >
+                            Rooms
+                        </button>
+                        <button
+                            onClick={() => setFilterType('hall')}
+                            className={`px-3 py-1 rounded-md text-xs font-medium ${filterType === 'hall' ? 'bg-white shadow' : 'text-gray-500'}`}
+                            style={filterType === 'hall' ? { background: 'white', border: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' } : { background: 'transparent', border: 'none' }}
+                        >
+                            Halls
+                        </button>
+                    </div>
+                    {loading && <Loader2 size={16} className="spinner" />}
                     <button className="btn-primary" onClick={() => { setSelectedBooking(null); setIsEdit(false); setIsModalOpen(true); }}>
                         <Plus size={18} /> New Booking
                     </button>
@@ -200,26 +228,29 @@ export default function Calendar() {
                                         </div>
 
                                         <div className="day-events" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            {dayBookings.slice(0, 3).map((b, bIdx) => (
-                                                <div
-                                                    key={bIdx}
-                                                    onClick={(e) => handleEventClick(e, b)}
-                                                    style={{
-                                                        fontSize: '0.7rem',
-                                                        padding: '4px 6px',
-                                                        background: '#eff6ff',
-                                                        color: '#1e40af',
-                                                        borderRadius: '4px',
-                                                        borderLeft: '3px solid #3b82f6',
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        fontWeight: 500
-                                                    }}
-                                                >
-                                                    {b.room_name} - {b.person_name}
-                                                </div>
-                                            ))}
+                                            {dayBookings.slice(0, 3).map((b, bIdx) => {
+                                                const isHall = b.type === 'hall';
+                                                return (
+                                                    <div
+                                                        key={bIdx}
+                                                        onClick={(e) => handleEventClick(e, b)}
+                                                        style={{
+                                                            fontSize: '0.7rem',
+                                                            padding: '4px 6px',
+                                                            background: isHall ? '#f5f3ff' : '#eff6ff',
+                                                            color: isHall ? '#5b21b6' : '#1e40af',
+                                                            borderRadius: '4px',
+                                                            borderLeft: `3px solid ${isHall ? '#8b5cf6' : '#3b82f6'}`,
+                                                            whiteSpace: 'nowrap',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            fontWeight: 500
+                                                        }}
+                                                    >
+                                                        {isHall ? 'H' : 'R'}: {b.room_name} - {b.person_name}
+                                                    </div>
+                                                );
+                                            })}
                                             {dayBookings.length > 3 && (
                                                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', paddingLeft: '4px' }}>
                                                     + {dayBookings.length - 3} more
