@@ -88,7 +88,7 @@ app.get('/api/bookings', async (req, res) => {
             query += ` WHERE b.check_in < $2 AND b.check_out > $1 `;
             params.push(start, end);
         }
-        query += ` ORDER BY b.check_in ASC`;
+        query += ` ORDER BY b.check_in DESC`;
         const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err: any) {
@@ -97,22 +97,58 @@ app.get('/api/bookings', async (req, res) => {
 });
 
 app.post('/api/bookings', async (req, res) => {
-    const { room_id, person_name, phone, check_in, check_out } = req.body;
+    const { room_id, person_name, phone, check_in } = req.body;
     try {
+        // Only check overlap with currently 'Checked In' bookings
         const overlap = await pool.query(`
       SELECT * FROM bookings 
       WHERE room_id = $1 
-      AND ($2 < check_out AND $3 > check_in)
-    `, [room_id, check_in, check_out]);
+      AND status = 'Checked In'
+    `, [room_id]);
 
         if (overlap.rows.length > 0) {
-            return res.status(400).json({ error: 'Overlapping booking exists for this room.' });
+            return res.status(400).json({ error: 'This room is currently occupied.' });
         }
 
         const result = await pool.query(
-            'INSERT INTO bookings (room_id, person_name, phone, check_in, check_out) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [room_id, person_name, phone, check_in, check_out]
+            "INSERT INTO bookings (room_id, person_name, phone, check_in, status) VALUES ($1, $2, $3, $4, 'Checked In') RETURNING *",
+            [room_id, person_name, phone, check_in || new Date()]
         );
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/bookings/:id/checkout', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const booking = await pool.query('SELECT * FROM bookings WHERE id = $1', [id]);
+        if (booking.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+
+        if (booking.rows[0].status === 'Checked Out') {
+            return res.status(400).json({ error: 'Already checked out' });
+        }
+
+        const result = await pool.query(
+            "UPDATE bookings SET check_out = NOW(), status = 'Checked Out' WHERE id = $1 RETURNING *",
+            [id]
+        );
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/bookings/:id', async (req, res) => {
+    const { id } = req.params;
+    const { room_id, person_name, phone, check_in, check_out, status } = req.body;
+    try {
+        const result = await pool.query(
+            'UPDATE bookings SET room_id = $1, person_name = $2, phone = $3, check_in = $4, check_out = $5, status = $6 WHERE id = $7 RETURNING *',
+            [room_id, person_name, phone, check_in, check_out, status, id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
         res.json(result.rows[0]);
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -287,9 +323,19 @@ app.post('/api/init', async (_req, res) => {
         person_name TEXT NOT NULL,
         phone TEXT NOT NULL,
         check_in TIMESTAMP NOT NULL,
-        check_out TIMESTAMP NOT NULL,
+        check_out TIMESTAMP,
+        status TEXT DEFAULT 'Checked In',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      -- Migration: Allow NULL check_out and add status if missing
+      DO $$ 
+      BEGIN 
+        ALTER TABLE bookings ALTER COLUMN check_out DROP NOT NULL;
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='bookings' AND COLUMN_NAME='status') THEN
+          ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'Checked In';
+        END IF;
+      END $$;
     `);
         res.json({ success: true });
     } catch (err: any) {

@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { request } from '../api';
 import { Link } from 'react-router-dom';
-import { Home, CheckCircle, XCircle, Calendar as CalendarIcon, ArrowRight, ClipboardList, MapPin, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Home, CheckCircle, XCircle, Calendar as CalendarIcon, ArrowRight, ClipboardList, Plus } from 'lucide-react';
 
 export default function Dashboard() {
     const [stats, setStats] = useState<any>(null);
@@ -28,6 +29,16 @@ export default function Dashboard() {
         const interval = setInterval(fetchData, 30000); // 30 seconds
         return () => clearInterval(interval);
     }, [fetchData]);
+
+    const handleCheckout = async (id: number) => {
+        try {
+            await request(`/bookings/${id}/checkout`, { method: 'PUT' });
+            toast.success('Room checked out successfully');
+            fetchData();
+        } catch (err: any) {
+            toast.error(err.message || 'Checkout failed');
+        }
+    };
 
     if (loading && !stats) return (
         <div className="loading-state">
@@ -100,6 +111,56 @@ export default function Dashboard() {
                 <div className="card table-responsive">
                     <div className="card-header">
                         <h3 className="flex items-center gap-2">
+                            <XCircle size={20} className="text-danger" />
+                            Currently Occupied
+                        </h3>
+                        <Link to="/bookings" className="view-all-link">New Check-in <Plus size={16} /></Link>
+                    </div>
+                    {!stats.currentlyBookedRooms || stats.currentlyBookedRooms.length === 0 ? (
+                        <div className="empty-state-compact">
+                            <CheckCircle size={32} className="text-success" />
+                            <p>All rooms are currently vacant.</p>
+                        </div>
+                    ) : (
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Room Name</th>
+                                    <th>Guest</th>
+                                    <th>Check-in</th>
+                                    <th style={{ textAlign: 'right' }}>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {stats.currentlyBookedRooms.map((booking: any) => (
+                                    <tr key={booking.id}>
+                                        <td style={{ fontWeight: 600 }}>{booking.room_name}</td>
+                                        <td>
+                                            <div style={{ fontWeight: 500 }}>{booking.person_name}</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{booking.phone}</div>
+                                        </td>
+                                        <td>{new Date(booking.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                        <td>
+                                            <div className="flex justify-end">
+                                                <button
+                                                    onClick={() => handleCheckout(booking.id)}
+                                                    className="btn-danger"
+                                                    style={{ padding: '4px 12px', fontSize: '0.85rem' }}
+                                                >
+                                                    Checkout
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                <div className="card table-responsive">
+                    <div className="card-header">
+                        <h3 className="flex items-center gap-2">
                             <CheckCircle size={20} className="text-success" />
                             Available Rooms
                         </h3>
@@ -116,27 +177,25 @@ export default function Dashboard() {
                                 <tr>
                                     <th>Room Name</th>
                                     <th>Capacity</th>
-                                    <th>Location</th>
-                                    <th>Status</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {availableRooms.map((room: any) => (
                                     <tr key={room.id}>
                                         <td style={{ fontWeight: 600 }}>{room.name}</td>
+                                        <td>{room.capacity} Persons</td>
                                         <td>
-                                            <div className="flex items-center gap-1">
-                                                <Users size={14} className="text-muted" />
-                                                {room.capacity} Persons
+                                            <div className="flex justify-end">
+                                                <Link
+                                                    to={`/bookings?room=${room.id}`}
+                                                    className="btn-primary"
+                                                    style={{ padding: '4px 12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                >
+                                                    <Plus size={14} /> Check-in
+                                                </Link>
                                             </div>
                                         </td>
-                                        <td>
-                                            <div className="flex items-center gap-1">
-                                                <MapPin size={14} className="text-muted" />
-                                                {room.location || 'Not Specified'}
-                                            </div>
-                                        </td>
-                                        <td><span className="status-badge available">Available</span></td>
                                     </tr>
                                 ))}
                             </tbody>
