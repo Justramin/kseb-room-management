@@ -184,7 +184,7 @@ export default function Dashboard() {
                             <tbody>
                                 {availableRooms.map((room: any) => (
                                     <tr key={room.id}>
-                                        <td style={{ fontWeight: 600 }}>{room.name}</td>
+                                        <td style={{ fontWeight: 600 }}>{room.room_name}</td>
                                         <td>{room.capacity} Persons</td>
                                         <td>
                                             <div className="flex justify-end">

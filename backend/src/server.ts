@@ -301,7 +301,7 @@ app.get('/api/rooms/summary', async (_req, res) => {
 app.get('/api/rooms/available', async (_req, res) => {
     try {
         const query = `
-            SELECT r.*
+            SELECT r.id, r.id as room_id, r.room_name, r.capacity
             FROM rooms r
             WHERE r.id NOT IN (
                 SELECT room_id FROM bookings
