@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { request } from '../api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { Loader2, Edit2, User, Phone, ClipboardList, CheckCircle, Clock, MapPin, Search } from 'lucide-react';
+import { Loader2, Edit2, User, Phone, ClipboardList, CheckCircle, Clock, Search, DoorOpen } from 'lucide-react';
 
 export default function History() {
     const [bookings, setBookings] = useState<any[]>([]);
@@ -56,9 +56,13 @@ export default function History() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const payload = {
+                ...formData,
+                check_out: formData.check_out || null
+            };
             await request(`/bookings/${isEditing.id}`, {
                 method: 'PUT',
-                body: JSON.stringify(formData)
+                body: JSON.stringify(payload)
             });
             toast.success('Record updated successfully');
             setIsEditing(null);
@@ -89,7 +93,7 @@ export default function History() {
                     <form onSubmit={handleSubmit} className="p-4">
                         <div className="grid-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div className="form-group">
-                                <label><MapPin size={14} /> Room</label>
+                                <label><DoorOpen size={14} /> Room</label>
                                 <select
                                     required
                                     value={formData.room_id}
@@ -139,6 +143,7 @@ export default function History() {
                                     value={formData.status}
                                     onChange={e => setFormData({ ...formData, status: e.target.value })}
                                 >
+                                    <option value="Scheduled">Scheduled</option>
                                     <option value="Checked In">Checked In</option>
                                     <option value="Checked Out">Checked Out</option>
                                 </select>
@@ -199,11 +204,11 @@ export default function History() {
                                             {b.check_out ? (
                                                 format(new Date(b.check_out), 'MMM dd, p')
                                             ) : (
-                                                <span className="text-muted italic">Occupied</span>
+                                                <span className="text-muted italic">---</span>
                                             )}
                                         </td>
                                         <td>
-                                            <span className={`status-badge ${b.status === 'Checked In' ? 'booked' : 'available'}`}>
+                                            <span className={`status-badge ${b.status?.toLowerCase().replace(' ', '-')}`}>
                                                 {b.status === 'Checked In' ? <Clock size={12} style={{ marginRight: '4px' }} /> : <CheckCircle size={12} style={{ marginRight: '4px' }} />}
                                                 {b.status}
                                             </span>

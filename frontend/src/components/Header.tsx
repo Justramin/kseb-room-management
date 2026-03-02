@@ -1,10 +1,10 @@
 import { LogOut, User } from 'lucide-react';
 
 export default function Header() {
-    const username = localStorage.getItem('user') || 'Admin';
+    const username = 'KSEB Admin';
 
     const handleLogout = () => {
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('isAuthenticated');
         window.location.href = "/";
     };
 

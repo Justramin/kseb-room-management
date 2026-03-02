@@ -26,7 +26,8 @@ export default function Bookings() {
         room_id: initialRoomId,
         person_name: '',
         phone: '',
-        check_in: initialCheckIn || new Date().toISOString().slice(0, 16)
+        check_in: initialCheckIn || new Date().toISOString().slice(0, 16),
+        check_out: ''
     });
     const [loading, setLoading] = useState(true);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -51,7 +52,6 @@ export default function Bookings() {
     useEffect(() => {
         const fetchAvailability = async () => {
             try {
-                // Now we just need to know which rooms are NOT 'Checked In'
                 const data = await request('/rooms/availability');
 
                 let finalData = data;
@@ -76,25 +76,40 @@ export default function Bookings() {
         e.preventDefault();
 
         try {
+            const payload = {
+                ...formData,
+                check_out: formData.check_out || null
+            };
+
             if (isEditing) {
                 await request(`/bookings/${isEditing.id}`, {
                     method: 'PUT',
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(payload)
                 });
                 toast.success('Booking updated successfully');
             } else {
                 await request('/bookings', {
                     method: 'POST',
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(payload)
                 });
-                toast.success('Check-in recorded successfully');
+                toast.success('Booking recorded successfully');
             }
 
-            setFormData({ room_id: '', person_name: '', phone: '', check_in: new Date().toISOString().slice(0, 16) });
+            setFormData({ room_id: '', person_name: '', phone: '', check_in: new Date().toISOString().slice(0, 16), check_out: '' });
             setIsEditing(null);
             fetchData();
         } catch (err: any) {
-            toast.error(err.message === 'This room is currently occupied.' ? 'Room is already occupied.' : err.message);
+            toast.error(err.message === 'This room already has an active or scheduled booking.' ? 'Room is already occupied.' : err.message);
+        }
+    };
+
+    const handleCheckout = async (id: number) => {
+        try {
+            await request(`/bookings/${id}/checkout`, { method: 'PATCH' });
+            toast.success('Checked out successfully');
+            fetchData();
+        } catch (err: any) {
+            toast.error(err.message);
         }
     };
 
@@ -104,7 +119,8 @@ export default function Bookings() {
             room_id: booking.room_id.toString(),
             person_name: booking.person_name,
             phone: booking.phone,
-            check_in: new Date(booking.check_in).toISOString().slice(0, 16)
+            check_in: new Date(booking.check_in).toISOString().slice(0, 16),
+            check_out: booking.check_out ? new Date(booking.check_out).toISOString().slice(0, 16) : ''
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -131,13 +147,13 @@ export default function Bookings() {
     return (
         <div className="bookings-page">
             <div className="page-header">
-                <h2>Check-in Management</h2>
+                <h2>Booking Management</h2>
                 {loading && <Loader2 size={20} className="spinner" />}
             </div>
 
             <div className="card mb-4">
                 <div className="card-header">
-                    <h3>{isEditing ? 'Edit Booking Record' : 'New Check-in'}</h3>
+                    <h3>{isEditing ? 'Edit Booking Record' : 'New Booking'}</h3>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div className="grid-cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -148,6 +164,14 @@ export default function Bookings() {
                                 type="datetime-local"
                                 value={formData.check_in}
                                 onChange={e => setFormData({ ...formData, check_in: e.target.value })}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label><Calendar size={14} /> Check-out Time (Optional)</label>
+                            <input
+                                type="datetime-local"
+                                value={formData.check_out}
+                                onChange={e => setFormData({ ...formData, check_out: e.target.value })}
                             />
                         </div>
 
@@ -186,12 +210,12 @@ export default function Bookings() {
 
                     <div className="flex gap-2 justify-end">
                         {isEditing && (
-                            <button type="button" className="btn-secondary" onClick={() => { setIsEditing(null); setFormData({ room_id: '', person_name: '', phone: '', check_in: new Date().toISOString().slice(0, 16) }); }}>
+                            <button type="button" className="btn-secondary" onClick={() => { setIsEditing(null); setFormData({ room_id: '', person_name: '', phone: '', check_in: new Date().toISOString().slice(0, 16), check_out: '' }); }}>
                                 Cancel
                             </button>
                         )}
                         <button type="submit" className="btn-primary">
-                            {isEditing ? <><Edit2 size={16} /> Update Record</> : <><Plus size={16} /> Record Check-in</>}
+                            {isEditing ? <><Edit2 size={16} /> Update Record</> : <><Plus size={16} /> Record Booking</>}
                         </button>
                     </div>
                 </form>
@@ -228,12 +252,21 @@ export default function Bookings() {
                                         </td>
                                         <td>{format(new Date(b.check_in), 'MMM dd, p')}</td>
                                         <td>
-                                            <span className={`status-badge ${b.status === 'Checked In' ? 'booked' : 'available'}`}>
+                                            <span className={`status-badge ${b.status?.toLowerCase().replace(' ', '-')}`}>
                                                 {b.status}
                                             </span>
                                         </td>
                                         <td>
                                             <div className="flex gap-2 justify-end">
+                                                {b.status === 'Checked In' && (
+                                                    <button
+                                                        className="btn-danger"
+                                                        style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                                                        onClick={() => handleCheckout(b.id)}
+                                                    >
+                                                        Checkout
+                                                    </button>
+                                                )}
                                                 <button className="btn-secondary" style={{ padding: '6px 12px' }} onClick={() => handleEdit(b)}>
                                                     <Edit2 size={14} />
                                                 </button>
@@ -259,6 +292,6 @@ export default function Bookings() {
                 confirmText="Delete Booking"
                 type="danger"
             />
-        </div>
+        </div >
     );
 }

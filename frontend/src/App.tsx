@@ -6,13 +6,18 @@ import Rooms from './pages/Rooms';
 import Bookings from './pages/Bookings';
 import Calendar from './pages/Calendar';
 import History from './pages/History';
+import RoomSummary from './pages/drills/RoomSummary';
+import AvailableRooms from './pages/drills/AvailableRooms';
+import BookingsToday from './pages/drills/BookingsToday';
+import UpcomingBookings from './pages/drills/UpcomingBookings';
+import BookingDetail from './pages/drills/BookingDetail';
 
 import { Toaster } from 'react-hot-toast';
 import Header from './components/Header';
 
 const ProtectedRoute = ({ children }: { children: any }) => {
-  const user = localStorage.getItem('user');
-  if (!user) return <Navigate to="/login" />;
+  const isAuthenticated = sessionStorage.getItem('isAuthenticated') === 'true';
+  if (!isAuthenticated) return <Navigate to="/login" />;
   return (
     <div className="app-container">
       <Header />
@@ -38,6 +43,11 @@ export default function App() {
         <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+        <Route path="/rooms/summary" element={<ProtectedRoute><RoomSummary /></ProtectedRoute>} />
+        <Route path="/rooms/available" element={<ProtectedRoute><AvailableRooms /></ProtectedRoute>} />
+        <Route path="/bookings/today" element={<ProtectedRoute><BookingsToday /></ProtectedRoute>} />
+        <Route path="/bookings/upcoming" element={<ProtectedRoute><UpcomingBookings /></ProtectedRoute>} />
+        <Route path="/bookings/:id" element={<ProtectedRoute><BookingDetail /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
     </Router>

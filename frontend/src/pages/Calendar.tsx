@@ -1,57 +1,38 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
-import { enUS } from 'date-fns/locale';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { request } from '../api';
-import CalendarToolbar from '../components/CalendarToolbar';
-import BookingModal from '../components/BookingModal';
-import toast from 'react-hot-toast';
-import { Loader2 } from 'lucide-react';
-
-const locales = { 'en-US': enUS };
-
-const localizer = dateFnsLocalizer({
+import {
     format,
-    parse,
+    startOfMonth,
+    endOfMonth,
     startOfWeek,
-    getDay,
-    locales,
-});
+    endOfWeek,
+    eachDayOfInterval,
+    isSameMonth,
+    addMonths,
+    subMonths,
+    isToday,
+    parseISO,
+    startOfDay,
+    isWithinInterval
+} from 'date-fns';
+import toast from 'react-hot-toast';
+import { Loader2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus } from 'lucide-react';
+import BookingModal from '../components/BookingModal';
 
 export default function Calendar() {
-    const [events, setEvents] = useState<any[]>([]);
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [bookings, setBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-
-    // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isEdit, setIsEdit] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState<any>(null);
+    const [isEdit, setIsEdit] = useState(false);
 
-    // View State
-    const [currentRange, setCurrentRange] = useState<{ start: Date, end: Date } | null>(null);
-
-    const fetchBookings = useCallback(async (start?: Date, end?: Date) => {
+    const fetchBookings = useCallback(async () => {
         try {
             setLoading(true);
-            let url = '/bookings';
-            if (start && end) {
-                const params = new URLSearchParams({
-                    start: start.toISOString(),
-                    end: end.toISOString()
-                });
-                url += `?${params.toString()}`;
-            }
-            const data = await request(url);
-            const formattedEvents = data.map((b: any) => ({
-                id: b.id,
-                title: `${b.room_name} - ${b.person_name}`,
-                start: new Date(b.check_in),
-                end: new Date(b.check_out),
-                booking: b,
-                tooltip: `Room: ${b.room_name}\nGuest: ${b.person_name}\nTime: ${format(new Date(b.check_in), 'p')} - ${format(new Date(b.check_out), 'p')}`
-            }));
-            setEvents(formattedEvents);
+            // Fetch all bookings for now, or could optimize to fetch by month range
+            const data = await request('/bookings');
+            setBookings(data);
         } catch (err: any) {
             console.error(err);
             toast.error('Failed to load bookings');
@@ -60,84 +41,197 @@ export default function Calendar() {
         }
     }, []);
 
-    // Initial load
     useEffect(() => {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-        setCurrentRange({ start, end });
-        fetchBookings(start, end);
+        fetchBookings();
     }, [fetchBookings]);
 
-    const handleRangeChange = (range: Date[] | { start: Date; end: Date }) => {
-        let start: Date;
-        let end: Date;
-        if (Array.isArray(range)) {
-            start = range[0];
-            end = range[range.length - 1];
-        } else {
-            start = range.start;
-            end = range.end;
-        }
-        setCurrentRange({ start, end });
-        fetchBookings(start, end);
+    const goToPreviousMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
+    const goToNextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
+    const goToToday = () => setCurrentMonth(new Date());
+
+    const calendarGrid = useMemo(() => {
+        const monthStart = startOfMonth(currentMonth);
+        const monthEnd = endOfMonth(monthStart);
+        const startDate = startOfWeek(monthStart);
+        const endDate = endOfWeek(monthEnd);
+
+        return eachDayOfInterval({
+            start: startDate,
+            end: endDate,
+        });
+    }, [currentMonth]);
+
+    const getBookingsForDate = (date: Date) => {
+        const d = startOfDay(date);
+        return bookings.filter(b => {
+            const bStart = startOfDay(parseISO(b.check_in));
+            const bEnd = b.check_out ? startOfDay(parseISO(b.check_out)) : bStart;
+
+            return isWithinInterval(d, { start: bStart, end: bEnd });
+        });
     };
 
-    const handleSelectSlot = (slotInfo: { start: Date, end: Date }) => {
-        setSelectedBooking({
-            check_in: slotInfo.start.toISOString(),
-            check_out: slotInfo.end.toISOString()
-        });
+    const handleDateClick = (date: Date) => {
+        const isoStr = date.toISOString().split('T')[0] + 'T09:00:00.000Z';
+        setSelectedBooking({ check_in: isoStr });
         setIsEdit(false);
         setIsModalOpen(true);
     };
 
-    const handleSelectEvent = (event: any) => {
-        setSelectedBooking(event.booking);
+    const handleEventClick = (e: React.MouseEvent, booking: any) => {
+        e.stopPropagation();
+        setSelectedBooking(booking);
         setIsEdit(true);
         setIsModalOpen(true);
     };
 
-    const CustomEvent = ({ event }: any) => {
-        return (
-            <div className="calendar-event-pill">
-                <span className="event-dot"></span>
-                <span className="event-text">
-                    {event.booking.room_name} - {event.booking.person_name}
-                </span>
-            </div>
-        );
-    };
-
     return (
         <div className="calendar-page">
-            <div className="page-header">
-                <h2>Booking Calendar</h2>
-                {loading && <Loader2 size={20} className="spinner color-primary" />}
+            <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+                <div className="flex items-center gap-4">
+                    <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb', padding: '10px', borderRadius: '12px' }}>
+                        <CalendarIcon size={24} />
+                    </div>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>Booking Calendar</h2>
+                        <p style={{ color: 'var(--text-muted)', margin: 0 }}>View and manage room assignments</p>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {loading && <Loader2 size={20} className="spinner" style={{ color: 'var(--primary-color)' }} />}
+                    <button className="btn-primary" onClick={() => { setSelectedBooking(null); setIsEdit(false); setIsModalOpen(true); }}>
+                        <Plus size={18} /> New Booking
+                    </button>
+                </div>
             </div>
 
-            <div className="card calendar-container-professional">
-                <BigCalendar
-                    selectable={true}
-                    localizer={localizer}
-                    events={events}
-                    startAccessor="start"
-                    endAccessor="end"
-                    tooltipAccessor="tooltip"
-                    onSelectEvent={handleSelectEvent}
-                    onSelectSlot={handleSelectSlot}
-                    onRangeChange={handleRangeChange}
-                    views={['month', 'week', 'day']}
-                    defaultView="month"
-                    popup={true}
-                    components={{
-                        toolbar: CalendarToolbar,
-                        event: CustomEvent
-                    }}
-                    eventPropGetter={() => ({
-                        className: 'custom-rbc-event'
-                    })}
-                />
+            <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+                <div className="calendar-header" style={{
+                    padding: '1.25rem 1.5rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: '1px solid var(--border-color)'
+                }}>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>
+                        {format(currentMonth, 'MMMM yyyy')}
+                    </h3>
+                    <div className="flex gap-2">
+                        <button onClick={goToPreviousMonth} className="btn-secondary" style={{ padding: '8px' }}>
+                            <ChevronLeft size={20} />
+                        </button>
+                        <button onClick={goToToday} className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.875rem' }}>
+                            Today
+                        </button>
+                        <button onClick={goToNextMonth} className="btn-secondary" style={{ padding: '8px' }}>
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="calendar-grid-wrapper" style={{ overflowX: 'auto' }}>
+                    <div style={{ minWidth: '800px' }}>
+                        <div className="grid-days-header" style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(7, 1fr)',
+                            background: '#f8fafc',
+                            borderBottom: '1px solid var(--border-color)'
+                        }}>
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                                <div key={day} style={{
+                                    padding: '12px',
+                                    textAlign: 'center',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    color: 'var(--text-muted)',
+                                    letterSpacing: '0.05em'
+                                }}>
+                                    {day}
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="calendar-body" style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(7, 1fr)',
+                            background: 'var(--border-color)',
+                            gap: '1px'
+                        }}>
+                            {calendarGrid.map((date, idx) => {
+                                const dayBookings = getBookingsForDate(date);
+                                const isCurrMonth = isSameMonth(date, currentMonth);
+                                const isTodayDate = isToday(date);
+
+                                return (
+                                    <div
+                                        key={idx}
+                                        onClick={() => handleDateClick(date)}
+                                        style={{
+                                            minHeight: '130px',
+                                            background: isCurrMonth ? 'white' : '#fcfdfe',
+                                            padding: '8px',
+                                            position: 'relative',
+                                            cursor: 'pointer'
+                                        }}
+                                        className="calendar-cell"
+                                    >
+                                        <div style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            marginBottom: '8px'
+                                        }}>
+                                            <span style={{
+                                                fontSize: '0.875rem',
+                                                fontWeight: isTodayDate ? 700 : 500,
+                                                color: isTodayDate ? '#2563eb' : (isCurrMonth ? 'var(--text-main)' : '#94a3b8'),
+                                                background: isTodayDate ? '#eff6ff' : 'transparent',
+                                                padding: '2px 6px',
+                                                borderRadius: '6px'
+                                            }}>
+                                                {format(date, 'd')}
+                                            </span>
+                                            {dayBookings.length > 0 && (
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                    {dayBookings.length} {dayBookings.length === 1 ? 'Booking' : 'Bookings'}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="day-events" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            {dayBookings.slice(0, 3).map((b, bIdx) => (
+                                                <div
+                                                    key={bIdx}
+                                                    onClick={(e) => handleEventClick(e, b)}
+                                                    style={{
+                                                        fontSize: '0.7rem',
+                                                        padding: '4px 6px',
+                                                        background: '#eff6ff',
+                                                        color: '#1e40af',
+                                                        borderRadius: '4px',
+                                                        borderLeft: '3px solid #3b82f6',
+                                                        whiteSpace: 'nowrap',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        fontWeight: 500
+                                                    }}
+                                                >
+                                                    {b.room_name} - {b.person_name}
+                                                </div>
+                                            ))}
+                                            {dayBookings.length > 3 && (
+                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', paddingLeft: '4px' }}>
+                                                    + {dayBookings.length - 3} more
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <BookingModal
@@ -147,13 +241,24 @@ export default function Calendar() {
                 onClose={() => setIsModalOpen(false)}
                 onSaveSuccess={() => {
                     setIsModalOpen(false);
-                    if (currentRange) {
-                        fetchBookings(currentRange.start, currentRange.end);
-                    } else {
-                        fetchBookings();
-                    }
+                    fetchBookings();
                 }}
             />
+
+            <style>{`
+                .calendar-cell:hover {
+                    background: #f8fafc !important;
+                }
+                .calendar-cell {
+                    transition: background 0.1s;
+                }
+                @media (max-width: 768px) {
+                    .calendar-grid-wrapper {
+                        margin: 0 -1rem;
+                        padding: 0 1rem;
+                    }
+                }
+            `}</style>
         </div>
     );
 }

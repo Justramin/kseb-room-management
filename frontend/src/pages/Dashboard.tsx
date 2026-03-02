@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { request } from '../api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { format } from 'date-fns';
 import { Home, CheckCircle, XCircle, Calendar as CalendarIcon, ArrowRight, ClipboardList, Plus } from 'lucide-react';
 
 export default function Dashboard() {
@@ -32,7 +33,7 @@ export default function Dashboard() {
 
     const handleCheckout = async (id: number) => {
         try {
-            await request(`/bookings/${id}/checkout`, { method: 'PUT' });
+            await request(`/bookings/${id}/checkout`, { method: 'PATCH' });
             toast.success('Room checked out successfully');
             fetchData();
         } catch (err: any) {
@@ -66,28 +67,28 @@ export default function Dashboard() {
             </div>
 
             <div className="grid-cards" style={{ marginBottom: '2rem' }}>
-                <div className="stat-card">
+                <Link to="/rooms/summary" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
                     <div className="stat-icon rooms-icon"><Home size={24} /></div>
                     <div className="stat-content">
                         <h3>Total Rooms</h3>
                         <div className="value">{stats.totalRooms}</div>
                     </div>
-                </div>
-                <div className="stat-card">
+                </Link>
+                <Link to="/rooms/available" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
                     <div className="stat-icon available-icon"><CheckCircle size={24} /></div>
                     <div className="stat-content">
                         <h3>Available Today</h3>
                         <div className="value">{stats.availableRoomsCountToday}</div>
                     </div>
-                </div>
-                <div className="stat-card">
+                </Link>
+                <Link to="/bookings/today" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
                     <div className="stat-icon booked-icon"><XCircle size={24} /></div>
                     <div className="stat-content">
                         <h3>Booked Today</h3>
                         <div className="value">{stats.bookedRoomsCountToday}</div>
                     </div>
-                </div>
-                <div className="stat-card upcoming-card">
+                </Link>
+                <Link to={stats.nextUpcomingBooking ? `/bookings/${stats.nextUpcomingBooking.id}` : '/bookings/upcoming'} className="stat-card upcoming-card" style={{ textDecoration: 'none', color: 'inherit' }}>
                     <div className="stat-icon next-icon"><CalendarIcon size={24} /></div>
                     <div className="stat-content">
                         <h3>Next Booking</h3>
@@ -96,15 +97,15 @@ export default function Dashboard() {
                                 <>
                                     <div className="next-room">{stats.nextUpcomingBooking.room_name}</div>
                                     <div className="next-time">
-                                        {new Date(stats.nextUpcomingBooking.check_in).toLocaleDateString()} at {new Date(stats.nextUpcomingBooking.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {format(new Date(stats.nextUpcomingBooking.check_in), 'dd MMM yyyy | HH:mm')}
                                     </div>
                                 </>
                             ) : (
-                                <div className="no-upcoming">No upcoming bookings</div>
+                                <div className="no-upcoming">No upcoming entries</div>
                             )}
                         </div>
                     </div>
-                </div>
+                </Link>
             </div>
 
             <div className="dashboard-content-grid">
@@ -139,7 +140,7 @@ export default function Dashboard() {
                                             <div style={{ fontWeight: 500 }}>{booking.person_name}</div>
                                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{booking.phone}</div>
                                         </td>
-                                        <td>{new Date(booking.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                        <td>{format(new Date(booking.check_in), 'dd MMM yyyy | HH:mm')}</td>
                                         <td>
                                             <div className="flex justify-end">
                                                 <button

@@ -30,10 +30,10 @@ export default function Login() {
             const data = await res.json();
 
             if (data.success) {
-                localStorage.setItem("user", data.username);
+                sessionStorage.setItem("isAuthenticated", "true");
                 window.location.href = "/dashboard";
             } else {
-                alert("Invalid credentials");
+                alert("Invalid credentials. Please use KSEBWA / KSEB2026");
             }
         } catch (err) {
             console.error(err);
