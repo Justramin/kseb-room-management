@@ -594,6 +594,22 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
         error: err.message || 'Internal Server Error'
     });
 });
+// Cron endpoint for automated tasks (e.g., auto-checkout)
+app.post('/api/cron/auto-checkout', async (req, res) => {
+    const token = req.query.token as string;
+    if (!token || token !== process.env.CRON_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        const result = await pool.query(
+            `UPDATE bookings SET check_out = NOW() WHERE check_out IS NULL AND check_in <= NOW() RETURNING *`
+        );
+        res.json({ updated: result.rowCount, bookings: result.rows });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 const PORT = parseInt(process.env.PORT as string) || 10000;
 app.listen(PORT, '0.0.0.0', () => {
