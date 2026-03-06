@@ -15,7 +15,7 @@ export default function Bookings() {
     const parseLocalParam = (param: string | null) => {
         if (!param) return '';
         try {
-            return new Date(param).toISOString().slice(0, 16);
+            return new Date(new Date(param).getTime() - new Date(param).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         } catch { return ''; }
     };
 
@@ -29,7 +29,7 @@ export default function Bookings() {
         facility_id: initialRoomId || initialHallId,
         person_name: '',
         phone: '',
-        check_in: initialCheckIn || new Date().toISOString().slice(0, 16),
+        check_in: initialCheckIn || new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
         check_out: ''
     });
     const [loading, setLoading] = useState(true);
@@ -102,8 +102,8 @@ export default function Bookings() {
                 guest_name: formData.person_name, // User requested guest_name in payload
                 person_name: formData.person_name, // Maintain person_name for backend insert
                 phone: formData.phone,
-                check_in: formData.check_in,
-                check_out: formData.check_out || null
+                check_in: new Date(formData.check_in).toISOString(),
+                check_out: formData.check_out ? new Date(formData.check_out).toISOString() : null
             };
 
             if (isEditing) {
@@ -121,7 +121,7 @@ export default function Bookings() {
                 toast.success('Booking recorded successfully');
             }
 
-            setFormData({ facility_id: '', person_name: '', phone: '', check_in: new Date().toISOString().slice(0, 16), check_out: '' });
+            setFormData({ facility_id: '', person_name: '', phone: '', check_in: new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16), check_out: '' });
             setIsEditing(null);
             fetchData();
         } catch (err: any) {
@@ -147,8 +147,8 @@ export default function Bookings() {
             facility_id: (booking.room_id || booking.hall_id).toString(),
             person_name: booking.person_name,
             phone: booking.phone,
-            check_in: new Date(booking.check_in).toISOString().slice(0, 16),
-            check_out: booking.check_out ? new Date(booking.check_out).toISOString().slice(0, 16) : ''
+            check_in: new Date(new Date(booking.check_in).getTime() - new Date(booking.check_in).getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+            check_out: booking.check_out ? new Date(new Date(booking.check_out).getTime() - new Date(booking.check_out).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -260,7 +260,7 @@ export default function Bookings() {
 
                     <div className="flex gap-2 justify-end">
                         {isEditing && (
-                            <button type="button" className="btn-secondary" onClick={() => { setIsEditing(null); setFormData({ facility_id: '', person_name: '', phone: '', check_in: new Date().toISOString().slice(0, 16), check_out: '' }); }}>
+                            <button type="button" className="btn-secondary" onClick={() => { setIsEditing(null); setFormData({ facility_id: '', person_name: '', phone: '', check_in: new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16), check_out: '' }); }}>
                                 Cancel
                             </button>
                         )}

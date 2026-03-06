@@ -60,8 +60,8 @@ export default function History() {
             room_id: booking.room_id.toString(),
             person_name: booking.person_name,
             phone: booking.phone,
-            check_in: new Date(booking.check_in).toISOString().slice(0, 16),
-            check_out: booking.check_out ? new Date(booking.check_out).toISOString().slice(0, 16) : '',
+            check_in: new Date(new Date(booking.check_in).getTime() - new Date(booking.check_in).getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+            check_out: booking.check_out ? new Date(new Date(booking.check_out).getTime() - new Date(booking.check_out).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
             status: booking.status
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -72,7 +72,8 @@ export default function History() {
         try {
             const payload = {
                 ...formData,
-                check_out: formData.check_out || null
+                check_in: new Date(formData.check_in).toISOString(),
+                check_out: formData.check_out ? new Date(formData.check_out).toISOString() : null
             };
             await request(`/bookings/${isEditing.id}`, {
                 method: 'PUT',

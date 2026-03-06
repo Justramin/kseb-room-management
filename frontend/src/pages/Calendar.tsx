@@ -77,7 +77,8 @@ export default function Calendar() {
     };
 
     const handleDateClick = (date: Date) => {
-        const isoStr = date.toISOString().split('T')[0] + 'T09:00:00.000Z';
+        const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        const isoStr = new Date(`${localDate}T09:00:00`).toISOString();
         setSelectedBooking({ check_in: isoStr });
         setIsEdit(false);
         setIsModalOpen(true);

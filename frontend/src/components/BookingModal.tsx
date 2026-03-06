@@ -39,7 +39,7 @@ export default function BookingModal({ isOpen, isEdit, initialData, onClose, onS
         setFormData({
             facility_id: (d.room_id || d.hall_id || '').toString(),
             type: d.type || 'room',
-            date: checkInObj.toISOString().slice(0, 10),
+            date: new Date(checkInObj.getTime() - checkInObj.getTimezoneOffset() * 60000).toISOString().slice(0, 10),
             start_time: checkInObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
             end_time: checkOutObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
             person_name: d.person_name || '',

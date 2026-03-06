@@ -6,6 +6,7 @@ import { pool } from './db';
 import authRoutes from './routes/auth';
 
 dotenv.config();
+process.env.TZ = 'UTC';
 
 const app = express();
 
@@ -369,7 +370,7 @@ app.get('/api/dashboard', async (_req, res) => {
         // Today's Bookings (check-ins today)
         const todayBookingsCountResult = await pool.query(`
             SELECT COUNT(*) FROM bookings
-            WHERE DATE(check_in) = CURRENT_DATE
+            WHERE DATE(check_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata')
         `);
 
         // Available Rooms (not currently checked in)
@@ -395,7 +396,7 @@ app.get('/api/dashboard', async (_req, res) => {
 
         const todayHallBookingsCountResult = await pool.query(`
             SELECT COUNT(*) FROM hall_bookings
-            WHERE DATE(check_in) = CURRENT_DATE
+            WHERE DATE(check_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata')
         `);
 
         const availableHallsCount = totalHalls - currentlyBookedHallsResult.rows.length;
@@ -501,7 +502,7 @@ app.get('/api/bookings/today', async (_req, res) => {
     try {
         const result = await pool.query(`
             ${GET_BOOKINGS_QUERY}
-            WHERE DATE(b.check_in) = CURRENT_DATE
+            WHERE DATE(b.check_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata')
             ORDER BY b.check_in ASC
         `);
         res.json(result.rows);
