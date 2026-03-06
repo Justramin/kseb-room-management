@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import morgan from 'morgan';
 import { pool } from './db';
 import authRoutes from './routes/auth';
+import { initScheduler } from './scheduler';
 
 dotenv.config();
 process.env.TZ = 'UTC';
@@ -615,4 +616,9 @@ app.post('/api/cron/auto-checkout', async (req, res) => {
 const PORT = parseInt(process.env.PORT as string) || 10000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
+
+    // Start the internal scheduler (Keep-Alive + Auto-Checkout)
+    if (process.env.NODE_ENV !== 'test') {
+        initScheduler();
+    }
 });
