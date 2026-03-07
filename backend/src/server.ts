@@ -334,13 +334,22 @@ app.get('/api/halls/availability', async (req, res) => {
         const hallsResult = await pool.query('SELECT * FROM halls ORDER BY hall_name ASC');
         const halls = hallsResult.rows;
 
-        let timeCheckIn = check_in ? new Date(check_in as string) : new Date();
-        let timeCheckOut = check_out ? new Date(check_out as string) : new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
+        // If no dates are provided, we only want to check instantaneous occupancy (who is in the room right now)
+        let overlapResult;
+        if (!check_in && !check_out) {
+            overlapResult = await pool.query(`
+                SELECT hall_id FROM hall_bookings 
+                WHERE check_in <= NOW() AND actual_check_out IS NULL
+            `);
+        } else {
+            let timeCheckIn = check_in ? new Date(check_in as string) : new Date();
+            let timeCheckOut = check_out ? new Date(check_out as string) : new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
 
-        const overlapResult = await pool.query(`
-            SELECT hall_id FROM hall_bookings 
-            WHERE (check_in < $2 AND (COALESCE(actual_check_out, check_out) IS NULL OR COALESCE(actual_check_out, check_out) > $1))
-        `, [timeCheckIn, timeCheckOut]);
+            overlapResult = await pool.query(`
+                SELECT hall_id FROM hall_bookings 
+                WHERE (check_in < $2 AND (COALESCE(actual_check_out, check_out) IS NULL OR COALESCE(actual_check_out, check_out) > $1))
+            `, [timeCheckIn, timeCheckOut]);
+        }
 
         const bookedIds = new Set(overlapResult.rows.map(r => r.hall_id));
 
@@ -375,7 +384,8 @@ app.get('/api/dashboard', async (_req, res) => {
         `);
 
         // Available Rooms (not currently checked in)
-        const availableCount = totalRooms - currentlyBookedResult.rows.length;
+        const bookedRoomIds = new Set(currentlyBookedResult.rows.map((b: any) => b.room_id));
+        const availableCount = totalRooms - bookedRoomIds.size;
 
         // Next upcoming booking
         const nextBookingResult = await pool.query(`
@@ -400,7 +410,8 @@ app.get('/api/dashboard', async (_req, res) => {
             WHERE DATE(check_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata')
         `);
 
-        const availableHallsCount = totalHalls - currentlyBookedHallsResult.rows.length;
+        const bookedHallIds = new Set(currentlyBookedHallsResult.rows.map((b: any) => b.hall_id));
+        const availableHallsCount = totalHalls - bookedHallIds.size;
 
         // Next upcoming hall booking
         const nextHallBookingResult = await pool.query(`
@@ -413,14 +424,14 @@ app.get('/api/dashboard', async (_req, res) => {
         res.json({
             rooms: {
                 totalRooms,
-                bookedRoomsCountToday: parseInt(todayBookingsCountResult.rows[0].count, 10),
+                occupiedRoomsCount: bookedRoomIds.size,
                 availableRoomsCountToday: availableCount,
                 nextUpcomingBooking: nextBookingResult.rows[0] || null,
                 currentlyBookedRooms: currentlyBookedResult.rows
             },
             halls: {
                 totalHalls,
-                bookedHallsCountToday: parseInt(todayHallBookingsCountResult.rows[0].count, 10),
+                occupiedHallsCount: bookedHallIds.size,
                 availableHallsCountToday: availableHallsCount,
                 nextUpcomingBooking: nextHallBookingResult.rows[0] || null,
                 currentlyBookedHalls: currentlyBookedHallsResult.rows
@@ -437,16 +448,25 @@ app.get('/api/rooms/availability', async (req, res) => {
         const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_name ASC');
         const rooms = roomsResult.rows;
 
-        let timeCheckIn = check_in ? new Date(check_in as string) : new Date();
-        let timeCheckOut = check_out ? new Date(check_out as string) : new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
+        // If no dates are provided, check real-time exact occupancy rather than a 1-hour window
+        let overlapResult;
+        if (!check_in && !check_out) {
+            overlapResult = await pool.query(`
+                SELECT room_id FROM bookings 
+                WHERE check_in <= NOW() AND actual_check_out IS NULL
+            `);
+        } else {
+            let timeCheckIn = check_in ? new Date(check_in as string) : new Date();
+            let timeCheckOut = check_out ? new Date(check_out as string) : new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
 
-        if (isNaN(timeCheckIn.getTime())) timeCheckIn = new Date();
-        if (isNaN(timeCheckOut.getTime())) timeCheckOut = new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
+            if (isNaN(timeCheckIn.getTime())) timeCheckIn = new Date();
+            if (isNaN(timeCheckOut.getTime())) timeCheckOut = new Date(timeCheckIn.getTime() + 60 * 60 * 1000);
 
-        const overlapResult = await pool.query(`
-            SELECT room_id FROM bookings 
-            WHERE (check_in < $2 AND (COALESCE(actual_check_out, check_out) IS NULL OR COALESCE(actual_check_out, check_out) > $1))
-        `, [timeCheckIn, timeCheckOut]);
+            overlapResult = await pool.query(`
+                SELECT room_id FROM bookings 
+                WHERE (check_in < $2 AND (COALESCE(actual_check_out, check_out) IS NULL OR COALESCE(actual_check_out, check_out) > $1))
+            `, [timeCheckIn, timeCheckOut]);
+        }
 
         const bookedIds = new Set(overlapResult.rows.map(r => r.room_id));
 

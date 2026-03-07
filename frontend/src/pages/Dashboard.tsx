@@ -93,8 +93,8 @@ export default function Dashboard() {
                     <div className="stat-card">
                         <div className="stat-icon booked-icon"><XCircle size={24} /></div>
                         <div className="stat-content">
-                            <h3>Booked Today</h3>
-                            <div className="value">{stats.rooms.bookedRoomsCountToday}</div>
+                            <h3>Occupied Rooms</h3>
+                            <div className="value">{stats.rooms.occupiedRoomsCount}</div>
                         </div>
                     </div>
                 </div>
@@ -123,8 +123,8 @@ export default function Dashboard() {
                     <div className="stat-card">
                         <div className="stat-icon booked-icon" style={{ background: '#fff5f5', color: '#e53e3e' }}><XCircle size={24} /></div>
                         <div className="stat-content">
-                            <h3>Hall Booked Today</h3>
-                            <div className="value">{stats.halls.bookedHallsCountToday}</div>
+                            <h3>Occupied Halls</h3>
+                            <div className="value">{stats.halls.occupiedHallsCount}</div>
                         </div>
                     </div>
                 </div>
