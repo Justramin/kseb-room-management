@@ -126,10 +126,10 @@ app.delete('/api/halls/:id', async (req, res) => {
 
 // Bookings Routes
 const GET_BOOKINGS_QUERY = `
-  SELECT b.id, b.room_id, b.person_name, b.phone, b.check_in, b.check_out, b.created_at,
+  SELECT b.id, b.room_id, b.person_name, b.phone, b.check_in, COALESCE(b.actual_check_out, b.check_out) as check_out, b.created_at,
     r.room_name, 'room' as type,
     CASE 
-      WHEN b.check_out IS NOT NULL THEN 'Checked Out'
+      WHEN b.actual_check_out IS NOT NULL THEN 'Checked Out'
       WHEN b.check_in > NOW() THEN 'Scheduled'
       ELSE 'Checked In'
     END as status
@@ -138,10 +138,10 @@ const GET_BOOKINGS_QUERY = `
 `;
 
 const GET_HALL_BOOKINGS_QUERY = `
-  SELECT b.id, b.hall_id, b.person_name, b.phone, b.check_in, b.check_out, b.created_at,
+  SELECT b.id, b.hall_id, b.person_name, b.phone, b.check_in, COALESCE(b.actual_check_out, b.check_out) as check_out, b.created_at,
     h.hall_name as room_name, 'hall' as type,
     CASE 
-      WHEN b.check_out IS NOT NULL THEN 'Checked Out'
+      WHEN b.actual_check_out IS NOT NULL THEN 'Checked Out'
       WHEN b.check_in > NOW() THEN 'Scheduled'
       ELSE 'Checked In'
     END as status
@@ -217,7 +217,7 @@ app.patch('/api/bookings/:id/checkout', async (req, res) => {
         }
 
         const result = await pool.query(
-            "UPDATE bookings SET check_out = NOW(), status = 'Checked Out' WHERE id = $1 RETURNING *",
+            "UPDATE bookings SET actual_check_out = NOW(), status = 'Checked Out' WHERE id = $1 RETURNING *",
             [id]
         );
         res.json(result.rows[0]);
@@ -298,7 +298,7 @@ app.patch('/api/halls/bookings/:id/checkout', async (req, res) => {
     const { id } = req.params;
     try {
         const result = await pool.query(
-            "UPDATE hall_bookings SET check_out = NOW(), status = 'Checked Out' WHERE id = $1 RETURNING *",
+            "UPDATE hall_bookings SET actual_check_out = NOW(), status = 'Checked Out' WHERE id = $1 RETURNING *",
             [id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
@@ -339,7 +339,7 @@ app.get('/api/halls/availability', async (req, res) => {
 
         const overlapResult = await pool.query(`
             SELECT hall_id FROM hall_bookings 
-            WHERE (check_in < $2 AND (check_out IS NULL OR check_out > $1))
+            WHERE (check_in < $2 AND (COALESCE(actual_check_out, check_out) IS NULL OR COALESCE(actual_check_out, check_out) > $1))
         `, [timeCheckIn, timeCheckOut]);
 
         const bookedIds = new Set(overlapResult.rows.map(r => r.hall_id));
@@ -364,7 +364,7 @@ app.get('/api/dashboard', async (_req, res) => {
         // Currently booked rooms (Checked In)
         const currentlyBookedResult = await pool.query(`
             ${GET_BOOKINGS_QUERY}
-            WHERE b.check_in <= NOW() AND b.check_out IS NULL
+            WHERE b.check_in <= NOW() AND b.actual_check_out IS NULL
             ORDER BY b.check_in ASC
         `);
 
@@ -380,7 +380,7 @@ app.get('/api/dashboard', async (_req, res) => {
         // Next upcoming booking
         const nextBookingResult = await pool.query(`
             ${GET_BOOKINGS_QUERY}
-            WHERE b.check_in > NOW() AND b.check_out IS NULL
+            WHERE b.check_in > NOW() AND b.actual_check_out IS NULL
             ORDER BY b.check_in ASC
             LIMIT 1
         `);
@@ -391,7 +391,7 @@ app.get('/api/dashboard', async (_req, res) => {
 
         const currentlyBookedHallsResult = await pool.query(`
             ${GET_HALL_BOOKINGS_QUERY}
-            WHERE b.check_in <= NOW() AND b.check_out IS NULL
+            WHERE b.check_in <= NOW() AND b.actual_check_out IS NULL
             ORDER BY b.check_in ASC
         `);
 
@@ -405,7 +405,7 @@ app.get('/api/dashboard', async (_req, res) => {
         // Next upcoming hall booking
         const nextHallBookingResult = await pool.query(`
             ${GET_HALL_BOOKINGS_QUERY}
-            WHERE b.check_in > NOW() AND b.check_out IS NULL
+            WHERE b.check_in > NOW() AND b.actual_check_out IS NULL
             ORDER BY b.check_in ASC
             LIMIT 1
         `);
@@ -445,7 +445,7 @@ app.get('/api/rooms/availability', async (req, res) => {
 
         const overlapResult = await pool.query(`
             SELECT room_id FROM bookings 
-            WHERE (check_in < $2 AND (check_out IS NULL OR check_out > $1))
+            WHERE (check_in < $2 AND (COALESCE(actual_check_out, check_out) IS NULL OR COALESCE(actual_check_out, check_out) > $1))
         `, [timeCheckIn, timeCheckOut]);
 
         const bookedIds = new Set(overlapResult.rows.map(r => r.room_id));
@@ -464,10 +464,10 @@ app.get('/api/rooms/availability', async (req, res) => {
 app.get('/api/rooms/summary', async (_req, res) => {
     try {
         const totalRoomsResult = await pool.query('SELECT COUNT(*) FROM rooms');
-        const checkedInResult = await pool.query("SELECT COUNT(*) FROM bookings WHERE check_in <= NOW() AND check_out IS NULL");
+        const checkedInResult = await pool.query("SELECT COUNT(*) FROM bookings WHERE check_in <= NOW() AND actual_check_out IS NULL");
 
         const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_name ASC');
-        const bookingsResult = await pool.query(`${GET_BOOKINGS_QUERY} WHERE b.check_in <= NOW() AND b.check_out IS NULL`);
+        const bookingsResult = await pool.query(`${GET_BOOKINGS_QUERY} WHERE b.check_in <= NOW() AND b.actual_check_out IS NULL`);
 
         res.json({
             total: parseInt(totalRoomsResult.rows[0].count, 10),
@@ -488,7 +488,7 @@ app.get('/api/rooms/available', async (_req, res) => {
             FROM rooms r
             WHERE r.id NOT IN (
                 SELECT room_id FROM bookings
-                WHERE check_in <= NOW() AND check_out IS NULL
+                WHERE check_in <= NOW() AND actual_check_out IS NULL
             )
             ORDER BY r.room_name ASC
         `;
@@ -516,7 +516,7 @@ app.get('/api/bookings/upcoming', async (_req, res) => {
     try {
         const result = await pool.query(`
             ${GET_BOOKINGS_QUERY}
-            WHERE b.check_in > NOW() AND b.check_out IS NULL
+            WHERE b.check_in > NOW() AND b.actual_check_out IS NULL
             ORDER BY b.check_in ASC
         `);
         res.json(result.rows);
@@ -542,6 +542,7 @@ app.post('/api/init', async (_req, res) => {
         phone TEXT NOT NULL,
         check_in TIMESTAMP NOT NULL,
         check_out TIMESTAMP,
+        actual_check_out TIMESTAMP,
         status TEXT, -- Will be derived but kept for manual overrides if needed
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -562,6 +563,10 @@ app.post('/api/init', async (_req, res) => {
         IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='bookings' AND COLUMN_NAME='status') THEN
           ALTER TABLE bookings ADD COLUMN status TEXT;
         END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='bookings' AND COLUMN_NAME='actual_check_out') THEN
+          ALTER TABLE bookings ADD COLUMN actual_check_out TIMESTAMP;
+        END IF;
       END $$;
 
       CREATE TABLE IF NOT EXISTS halls (
@@ -579,9 +584,17 @@ app.post('/api/init', async (_req, res) => {
         phone TEXT NOT NULL,
         check_in TIMESTAMP NOT NULL,
         check_out TIMESTAMP,
+        actual_check_out TIMESTAMP,
         status TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='hall_bookings' AND COLUMN_NAME='actual_check_out') THEN
+          ALTER TABLE hall_bookings ADD COLUMN actual_check_out TIMESTAMP;
+        END IF;
+      END $$;
     `);
         res.json({ success: true });
     } catch (err: any) {

@@ -26,15 +26,27 @@ export const initScheduler = () => {
     setInterval(async () => {
         try {
             console.log(`[Auto-Checkout] Running at ${new Date().toISOString()}`);
+
+            // Check out rooms
             const result = await pool.query(
                 `UPDATE bookings 
-                 SET check_out = NOW() 
-                 WHERE check_out IS NULL AND check_in <= NOW() 
+                 SET actual_check_out = NOW() 
+                 WHERE actual_check_out IS NULL AND check_out IS NOT NULL AND check_out <= NOW() 
                  RETURNING *`
             );
 
-            if (result.rowCount && result.rowCount > 0) {
-                console.log(`[Auto-Checkout] Successfully checked out ${result.rowCount} bookings.`);
+            // Check out halls
+            const hallResult = await pool.query(
+                `UPDATE hall_bookings 
+                 SET actual_check_out = NOW() 
+                 WHERE actual_check_out IS NULL AND check_out IS NOT NULL AND check_out <= NOW() 
+                 RETURNING *`
+            );
+
+            const totalCheckedOut = (result.rowCount || 0) + (hallResult.rowCount || 0);
+
+            if (totalCheckedOut > 0) {
+                console.log(`[Auto-Checkout] Successfully checked out ${totalCheckedOut} total bookings.`);
             } else {
                 console.log(`[Auto-Checkout] No bookings required checkout.`);
             }
